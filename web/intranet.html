@@ -1052,6 +1052,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            session_id: state.bridgeSessionId || '',
             opening_message: openingMessage || '',
             user_display_name: 'Aria Patel',
           }),
