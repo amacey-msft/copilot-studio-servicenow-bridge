@@ -754,6 +754,11 @@
       // the echo to avoid a duplicate "Assistant" bubble that contains the
       // user's own question text.
       sentActivityIds: new Set(),
+      // Texts the local user just sent. Some Direct Line / Copilot Studio
+      // pipelines re-attribute the user's echo with role 'bot' and a new id,
+      // so id and role filters miss it. We dedupe by exact text as a final
+      // safety net.
+      sentTexts: [],
     };
 
     // ---------------- Helpers ----------------
@@ -994,6 +999,13 @@
           }
           if (act.type !== 'message') return;
           if (state.mode !== 'bot') return;
+          // Final safety net: if the incoming "bot" message text is identical
+          // to something the local user just sent, treat it as an echo.
+          if (act.text) {
+            const norm = String(act.text).trim();
+            const i = state.sentTexts.indexOf(norm);
+            if (i !== -1) { state.sentTexts.splice(i, 1); return; }
+          }
           if (act.text) { removeTyping(); render({ kind: 'bot', from: 'Assistant', text: act.text }); }
         });
         state.directLine.connectionStatus$.subscribe(() => {
@@ -1009,6 +1021,10 @@
     function sendToBot(text) {
       if (!state.directLine) return;
       showTyping('Assistant');
+      // Remember the exact text we sent so we can drop the inevitable echo.
+      const norm = String(text).trim();
+      state.sentTexts.push(norm);
+      if (state.sentTexts.length > 20) state.sentTexts.shift();
       state.directLine
         .postActivity({
           from: { id: state.userId, role: 'user' },
