@@ -5,11 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Contoso Connect — Employee Intranet</title>
   <style>
-    /* ---------------- Page chrome ---------------- */
+    /* ==========================================================
+       Page chrome
+       ========================================================== */
     :root {
       --brand: #0f4c81;
       --brand-dark: #0a3960;
+      --brand-light: #e6eef7;
       --accent: #ff7a1a;
+      --accent-light: #fff0e3;
+      --green: #047857;
+      --green-light: #d1fae5;
       --bg: #f4f6fa;
       --panel: #ffffff;
       --text: #1f2937;
@@ -21,66 +27,235 @@
       --system: #f3f4f6;
     }
     * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     body {
       margin: 0;
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
+      line-height: 1.5;
     }
+    a { color: var(--brand); }
+
     header.topbar {
       background: var(--brand);
       color: white;
-      padding: 14px 28px;
+      padding: 12px 28px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      position: sticky; top: 0; z-index: 50;
     }
-    .brand { font-weight: 700; font-size: 20px; letter-spacing: 0.3px; }
+    .topbar-left { display: flex; align-items: center; gap: 14px; }
+    .brand-mark {
+      width: 32px; height: 32px; border-radius: 6px;
+      background: white; color: var(--brand);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 16px;
+    }
+    .brand { font-weight: 700; font-size: 18px; letter-spacing: 0.3px; }
+    .topbar nav { display: flex; gap: 4px; }
     .topbar nav a {
       color: rgba(255,255,255,0.92);
       text-decoration: none;
-      margin-left: 22px;
+      padding: 8px 12px;
+      border-radius: 4px;
       font-size: 14px;
     }
-    .topbar nav a:hover { color: white; text-decoration: underline; }
+    .topbar nav a:hover { background: rgba(255,255,255,0.12); color: white; }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .topbar-search {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.18);
+      color: white; padding: 7px 12px; border-radius: 18px;
+      font-size: 13px; width: 220px; outline: none;
+    }
+    .topbar-search::placeholder { color: rgba(255,255,255,0.7); }
+    .topbar-user {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: var(--accent); color: white;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px; cursor: pointer;
+    }
 
+    /* ==========================================================
+       Layout
+       ========================================================== */
     main {
-      max-width: 1200px;
-      margin: 28px auto;
+      max-width: 1240px;
+      margin: 24px auto;
       padding: 0 24px;
       display: grid;
       grid-template-columns: 2fr 1fr;
       gap: 24px;
     }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 20px 22px;
       margin-bottom: 18px;
     }
-    .card h2 { margin-top: 0; color: var(--brand-dark); font-size: 18px; }
-    .card p { color: var(--muted); line-height: 1.5; font-size: 14px; }
+    .card h2 {
+      margin: 0 0 14px;
+      color: var(--brand-dark);
+      font-size: 17px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card h2 .more { font-size: 12px; font-weight: 500; color: var(--muted); text-decoration: none; }
+    .card h2 .more:hover { color: var(--brand); text-decoration: underline; }
+    .card p { color: var(--text); margin: 8px 0; font-size: 14px; }
+    .card .muted { color: var(--muted); font-size: 13px; }
+
+    /* ---------------- Hero ---------------- */
+    .hero {
+      background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
+      color: white; padding: 26px 28px; border-radius: 10px;
+      display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: center;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 14px rgba(15,76,129,0.18);
+    }
+    .hero h1 { margin: 0 0 6px; font-size: 22px; font-weight: 700; }
+    .hero p  { margin: 0; opacity: 0.9; font-size: 14px; }
+    .hero .hero-cta {
+      background: white; color: var(--brand); border: none;
+      padding: 10px 18px; border-radius: 6px; font-weight: 600;
+      cursor: pointer; font-size: 14px;
+    }
+    .hero .hero-cta:hover { background: #f1f5f9; }
+
+    /* ---------------- KPI strip ---------------- */
+    .kpi-strip {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 700px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } }
+    .kpi {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi .value { font-size: 22px; font-weight: 700; color: var(--brand-dark); margin-top: 2px; }
+    .kpi .delta { font-size: 12px; margin-top: 2px; }
+    .kpi .delta.up { color: var(--green); }
+    .kpi .delta.down { color: #b91c1c; }
+
+    /* ---------------- Announcements ---------------- */
+    .announcement {
+      display: grid; grid-template-columns: 64px 1fr; gap: 14px; align-items: start;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+    }
+    .announcement:last-child { border-bottom: none; }
+    .announcement .badge {
+      width: 64px; height: 64px; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: 700;
+    }
+    .announcement .badge.it { background: var(--brand-light); color: var(--brand); }
+    .announcement .badge.hr { background: var(--accent-light); color: var(--accent); }
+    .announcement .badge.events { background: var(--green-light); color: var(--green); }
+    .announcement h3 { margin: 0 0 4px; font-size: 15px; color: var(--text); }
+    .announcement .meta { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .announcement p { margin: 0; font-size: 13.5px; line-height: 1.45; }
+
+    /* ---------------- All-hands agenda ---------------- */
+    .agenda { padding: 0; margin: 0; list-style: none; }
+    .agenda li {
+      display: grid; grid-template-columns: 70px 1fr; gap: 12px;
+      padding: 10px 0; border-bottom: 1px dashed var(--border);
+    }
+    .agenda li:last-child { border-bottom: none; }
+    .agenda .time {
+      font-variant-numeric: tabular-nums; font-weight: 600;
+      color: var(--brand-dark); font-size: 13px;
+    }
+    .agenda .session-title { font-weight: 600; font-size: 14px; }
+    .agenda .session-meta  { color: var(--muted); font-size: 12px; }
+    .agenda .speakers { display: inline-flex; gap: -6px; margin-top: 4px; }
+    .agenda .speakers .avatar { margin-right: -8px; border: 2px solid white; }
+
+    /* ---------------- New hires ---------------- */
+    .hires { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    @media (max-width: 700px) { .hires { grid-template-columns: 1fr; } }
+    .hire {
+      display: grid; grid-template-columns: 48px 1fr; gap: 12px; align-items: center;
+      padding: 8px; border-radius: 6px; transition: background 0.15s;
+    }
+    .hire:hover { background: var(--brand-light); }
+    .hire .name { font-weight: 600; font-size: 13px; }
+    .hire .role { font-size: 12px; color: var(--muted); }
+    .avatar {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: var(--brand);
+      display: inline-flex; align-items: center; justify-content: center;
+      color: white; font-weight: 700; font-size: 14px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .avatar svg { width: 100%; height: 100%; display: block; }
+    .avatar.sm { width: 28px; height: 28px; font-size: 11px; }
+
+    /* ---------------- Quick links ---------------- */
     .quicklinks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .quicklinks a {
-      display: block; padding: 10px 12px; background: #f9fafb;
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 12px; background: #f9fafb;
       border: 1px solid var(--border); border-radius: 6px;
       color: var(--brand-dark); text-decoration: none; font-size: 13px;
     }
-    .quicklinks a:hover { background: var(--bot); border-color: var(--brand); }
+    .quicklinks a:hover { background: var(--brand-light); border-color: var(--brand); }
+    .quicklinks .ico {
+      width: 28px; height: 28px; border-radius: 6px;
+      background: var(--brand-light); color: var(--brand);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
 
-    /* ---------------- Chat widget ---------------- */
+    /* ---------------- Activity feed ---------------- */
+    .feed { padding: 0; margin: 0; list-style: none; }
+    .feed li {
+      display: grid; grid-template-columns: 32px 1fr auto; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid var(--border); align-items: start;
+    }
+    .feed li:last-child { border-bottom: none; }
+    .feed .icon {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--brand-light); color: var(--brand);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 13px;
+    }
+    .feed .text { font-size: 13px; }
+    .feed .text strong { color: var(--brand-dark); }
+    .feed .when { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+    /* ==========================================================
+       Chat widget
+       ========================================================== */
     #chatLauncher {
       position: fixed; bottom: 24px; right: 24px;
       width: 60px; height: 60px; border-radius: 50%;
       background: var(--brand); color: white; border: none;
       box-shadow: 0 6px 20px rgba(15,76,129,0.35);
       cursor: pointer; font-size: 24px; z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.15s;
     }
+    #chatLauncher:hover { transform: scale(1.06); }
+    #chatLauncher .unread {
+      position: absolute; top: -4px; right: -4px;
+      min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
+      background: var(--accent); color: white; font-size: 12px; font-weight: 700;
+      display: none; align-items: center; justify-content: center;
+      border: 2px solid white;
+    }
+    #chatLauncher.has-unread .unread { display: inline-flex; }
+
     #chatPanel {
       position: fixed; bottom: 24px; right: 24px;
-      width: 380px; height: 560px;
+      width: 380px; height: 580px;
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -91,218 +266,690 @@
       z-index: 1000;
     }
     #chatPanel.open { display: flex; }
+    @media (max-width: 480px) {
+      #chatPanel { width: calc(100vw - 16px); right: 8px; bottom: 8px; height: calc(100vh - 16px); }
+    }
+
     .chat-header {
       background: var(--brand);
       color: white;
-      padding: 12px 16px;
-      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px;
+      display: flex; align-items: center; gap: 8px;
     }
-    .chat-header .title { font-weight: 600; font-size: 15px; }
-    .chat-header .subtitle { font-size: 11px; opacity: 0.85; }
-    .chat-header button {
+    .chat-header .avatar {
+      width: 36px; height: 36px; background: rgba(255,255,255,0.2);
+      flex-shrink: 0;
+    }
+    .chat-header .titles { flex: 1; min-width: 0; }
+    .chat-header .title { font-weight: 600; font-size: 14px; line-height: 1.2;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chat-header .subtitle {
+      font-size: 11px; opacity: 0.85; line-height: 1.2;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .chat-header .subtitle .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; display: inline-block;
+    }
+    .chat-header .subtitle .dot.online { background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.25); }
+    .chat-header .subtitle .dot.busy   { background: #f59e0b; }
+    .chat-header .actions { display: flex; gap: 2px; }
+    .chat-header .icon-btn {
       background: transparent; color: white; border: none;
-      font-size: 18px; cursor: pointer;
+      width: 30px; height: 30px; border-radius: 6px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 16px; line-height: 1;
     }
+    .chat-header .icon-btn:hover { background: rgba(255,255,255,0.18); }
+    .chat-header .icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
     .chat-status {
-      padding: 8px 14px; font-size: 12px; background: var(--system);
-      border-bottom: 1px solid var(--border); color: var(--muted);
+      padding: 6px 14px; font-size: 11.5px;
+      background: var(--system); color: var(--muted);
+      border-bottom: 1px solid var(--border);
     }
-    .chat-status.live { background: #ecfdf5; color: #047857; font-weight: 600; }
+    .chat-status.live   { background: var(--green-light); color: var(--green); font-weight: 600; }
     .chat-status.queued { background: #fff7ed; color: #c2410c; }
     .chat-status.closed { background: #fef2f2; color: #991b1b; }
+
     .chat-log {
       flex: 1; overflow-y: auto; padding: 14px;
       display: flex; flex-direction: column; gap: 8px;
       background: #fafbfc;
+      scroll-behavior: smooth;
     }
+    .chat-log::-webkit-scrollbar { width: 6px; }
+    .chat-log::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+    .day-divider {
+      align-self: center; font-size: 11px; color: var(--muted);
+      background: white; border: 1px solid var(--border);
+      padding: 2px 10px; border-radius: 12px; margin: 4px 0;
+    }
+
+    .msg-row { display: flex; gap: 8px; align-items: flex-end; max-width: 85%; }
+    .msg-row.user { align-self: flex-end; flex-direction: row-reverse; }
+    .msg-row .avatar.sm { background: var(--brand); }
+    .msg-row.bot .avatar.sm { background: #6366f1; }
+    .msg-row.rep .avatar.sm { background: #d97706; }
     .msg {
-      max-width: 80%; padding: 8px 12px; border-radius: 12px;
-      font-size: 14px; line-height: 1.35; white-space: pre-wrap; word-wrap: break-word;
+      padding: 8px 12px; border-radius: 14px;
+      font-size: 14px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word;
+      position: relative;
     }
-    .msg .who { display: block; font-size: 10px; opacity: 0.7; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .msg.bot { background: var(--bot); align-self: flex-start; color: var(--text); }
-    .msg.user { background: var(--user); align-self: flex-end; color: white; }
-    .msg.user .who { color: rgba(255,255,255,0.8); }
-    .msg.rep { background: var(--rep); align-self: flex-start; color: #78350f; border: 1px solid #fcd34d; }
-    .msg.system { background: transparent; align-self: center; color: var(--muted); font-size: 11px; font-style: italic; }
+    .msg .who { display: block; font-size: 10px; opacity: 0.75; margin-bottom: 2px;
+      text-transform: uppercase; letter-spacing: 0.5px; }
+    .msg .ts {
+      display: block; font-size: 10px; color: var(--muted);
+      margin-top: 4px; text-align: right;
+    }
+    .msg-row.bot  .msg { background: var(--bot); color: var(--text); border-bottom-left-radius: 4px; }
+    .msg-row.user .msg { background: var(--user); color: white; border-bottom-right-radius: 4px; }
+    .msg-row.user .msg .ts { color: rgba(255,255,255,0.75); }
+    .msg-row.user .msg .who { color: rgba(255,255,255,0.8); }
+    .msg-row.rep  .msg { background: var(--rep); color: #78350f; border: 1px solid #fcd34d; border-bottom-left-radius: 4px; }
+    .msg.system { background: transparent; align-self: center; color: var(--muted);
+      font-size: 11.5px; font-style: italic; padding: 2px 10px; max-width: 100%; }
+
+    .typing { display: inline-flex; align-items: center; gap: 4px; padding: 4px 0; }
+    .typing span {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--muted);
+      animation: typingDot 1.2s infinite ease-in-out;
+    }
+    .typing span:nth-child(2) { animation-delay: 0.15s; }
+    .typing span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes typingDot {
+      0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(-3px); }
+    }
+
+    .scroll-newest {
+      position: absolute; bottom: 80px; right: 16px;
+      background: var(--brand); color: white; border: none;
+      width: 32px; height: 32px; border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2); cursor: pointer;
+      display: none; align-items: center; justify-content: center;
+      font-size: 16px; z-index: 5;
+    }
+    .scroll-newest.visible { display: inline-flex; }
+
+    .chat-quick-replies {
+      display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 8px;
+    }
+    .chat-quick-replies button {
+      background: white; border: 1px solid var(--brand); color: var(--brand);
+      padding: 6px 12px; border-radius: 14px; font-size: 12px; cursor: pointer;
+    }
+    .chat-quick-replies button:hover { background: var(--brand-light); }
+
     .chat-input {
       display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--border); background: white;
+      align-items: flex-end;
     }
-    .chat-input input {
+    .chat-input textarea {
       flex: 1; padding: 9px 12px; border: 1px solid var(--border);
       border-radius: 18px; font-size: 14px; outline: none;
+      resize: none; max-height: 120px; min-height: 38px;
+      font-family: inherit; line-height: 1.4;
     }
-    .chat-input input:focus { border-color: var(--brand); }
-    .chat-input button {
+    .chat-input textarea:focus { border-color: var(--brand); }
+    .chat-input .send-btn {
       background: var(--brand); color: white; border: none;
-      padding: 0 18px; border-radius: 18px; cursor: pointer; font-weight: 600;
+      width: 38px; height: 38px; border-radius: 50%; cursor: pointer; font-weight: 600;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 16px;
     }
-    .chat-input button:disabled { background: #9ca3af; cursor: not-allowed; }
-    .escalate-btn {
-      margin: 8px 14px; padding: 8px;
-      background: white; border: 1px dashed var(--accent); color: var(--accent);
-      border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
-      display: none;  /* Agent decides when to escalate; manual button is a debug fallback only. */
+    .chat-input .send-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+
+    /* ---------------- Confirm modal (in-panel) ---------------- */
+    .confirm-overlay {
+      position: absolute; inset: 0; background: rgba(15,23,42,0.4);
+      display: none; align-items: center; justify-content: center;
+      z-index: 10; padding: 20px;
     }
-    .escalate-btn:hover { background: #fff7ed; }
-    .escalate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .confirm-overlay.open { display: flex; }
+    .confirm-box {
+      background: white; border-radius: 10px; padding: 18px 20px;
+      max-width: 280px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    .confirm-box h3 { margin: 0 0 6px; font-size: 15px; color: var(--brand-dark); }
+    .confirm-box p { margin: 0 0 14px; font-size: 13px; color: var(--muted); }
+    .confirm-box .actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .confirm-box button {
+      padding: 7px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 600;
+    }
+    .confirm-box .btn-cancel { background: #e5e7eb; color: var(--text); border: none; }
+    .confirm-box .btn-cancel:hover { background: #d1d5db; }
+    .confirm-box .btn-confirm { background: var(--brand); color: white; border: none; }
+    .confirm-box .btn-confirm:hover { background: var(--brand-dark); }
+    .confirm-box .btn-confirm.danger { background: #b91c1c; }
+    .confirm-box .btn-confirm.danger:hover { background: #991b1b; }
+
+    /* ---------------- Sr-only ---------------- */
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+
+    footer.bottom {
+      max-width: 1240px; margin: 8px auto 30px; padding: 12px 24px;
+      color: var(--muted); font-size: 12px; display: flex; justify-content: space-between;
+    }
   </style>
+  <!-- BotFramework WebChat (provides window.WebChat.createDirectLine) -->
+  <script crossorigin="anonymous" src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">📘 Contoso Connect</div>
-    <nav>
-      <a href="#">Home</a>
-      <a href="#">HR</a>
-      <a href="#">IT Support</a>
-      <a href="#">Benefits</a>
-      <a href="#">Directory</a>
-    </nav>
+    <div class="topbar-left">
+      <div class="brand-mark" aria-hidden="true">C</div>
+      <div class="brand">Contoso Connect</div>
+      <nav>
+        <a href="#">Home</a>
+        <a href="#">HR</a>
+        <a href="#">IT Support</a>
+        <a href="#">Benefits</a>
+        <a href="#">Directory</a>
+        <a href="#">Learning</a>
+      </nav>
+    </div>
+    <div class="topbar-right">
+      <input type="search" class="topbar-search" placeholder="Search the intranet…" aria-label="Search the intranet" />
+      <div class="topbar-user" title="Aria Patel — Engineering">AP</div>
+    </div>
   </header>
 
   <main>
     <div>
+      <!-- Hero -->
+      <section class="hero" aria-label="Welcome">
+        <div>
+          <h1>Good afternoon, Aria 👋</h1>
+          <p>You have <strong>3 open IT tickets</strong>, the next all-hands starts in <strong>2 days</strong>, and 14 new teammates joined this week.</p>
+        </div>
+        <button class="hero-cta" onclick="document.getElementById('chatLauncher').click();">Ask the assistant</button>
+      </section>
+
+      <!-- KPI strip -->
+      <section class="kpi-strip" aria-label="Quick stats">
+        <div class="kpi"><div class="label">Open tickets</div><div class="value">3</div><div class="delta down">+1 since Monday</div></div>
+        <div class="kpi"><div class="label">PTO balance</div><div class="value">12d</div><div class="delta up">accrued +1d</div></div>
+        <div class="kpi"><div class="label">Pulse score</div><div class="value">8.4</div><div class="delta up">+0.2 vs Q1</div></div>
+        <div class="kpi"><div class="label">Office capacity</div><div class="value">62%</div><div class="delta">today</div></div>
+      </section>
+
+      <!-- Announcements -->
       <div class="card">
-        <h2>Welcome back</h2>
-        <p>Your one-stop shop for company news, IT help, HR resources, and more. Need a hand? Click the chat icon in the bottom-right to ask our AI assistant — and if you need a real person, you can escalate to an IT support agent right from the chat.</p>
+        <h2>Latest announcements <a href="#" class="more">View all →</a></h2>
+
+        <div class="announcement">
+          <div class="badge events" aria-hidden="true">📅</div>
+          <div>
+            <h3>Q2 all-hands — Friday at 11:00</h3>
+            <div class="meta">Posted 2 hours ago • Leadership</div>
+            <p>Calendar invites are out. We'll cover Q1 results, the new product strategy, and a Q&amp;A with the leadership team. See the agenda on the right →</p>
+          </div>
+        </div>
+
+        <div class="announcement">
+          <div class="badge it" aria-hidden="true">⚙️</div>
+          <div>
+            <h3>VPN maintenance — Sunday 02:00–04:00 UTC</h3>
+            <div class="meta">Posted yesterday • IT Operations</div>
+            <p>Brief disconnects expected during the window. No action required from you, but please save your work before EOD Saturday if you'll be on PTO and connecting from abroad.</p>
+          </div>
+        </div>
+
+        <div class="announcement">
+          <div class="badge hr" aria-hidden="true">🌟</div>
+          <div>
+            <h3>Welcome our 14 newest teammates</h3>
+            <div class="meta">Posted Monday • People &amp; Culture</div>
+            <p>Engineering, sales, and ops grew this week. Say hi in #welcome and check out a few of them in the New Hires panel.</p>
+          </div>
+        </div>
       </div>
+
+      <!-- All-hands agenda -->
       <div class="card">
-        <h2>Latest announcements</h2>
-        <p><strong>Q2 all-hands</strong> — Friday at 11:00. Calendar invites are out.</p>
-        <p><strong>VPN maintenance</strong> — Sunday 02:00–04:00 UTC. Brief disconnects expected.</p>
-        <p><strong>New hire onboarding</strong> — Welcome to our 14 newest team members across engineering, sales, and ops.</p>
+        <h2>Q2 all-hands — agenda <a href="#" class="more">Add to calendar →</a></h2>
+        <ul class="agenda">
+          <li>
+            <div class="time">11:00</div>
+            <div>
+              <div class="session-title">Welcome &amp; Q1 highlights</div>
+              <div class="session-meta">Sam Chen, CEO • 10 min</div>
+            </div>
+          </li>
+          <li>
+            <div class="time">11:10</div>
+            <div>
+              <div class="session-title">Q2 product strategy</div>
+              <div class="session-meta">Rina Okafor, CPO • 20 min</div>
+            </div>
+          </li>
+          <li>
+            <div class="time">11:30</div>
+            <div>
+              <div class="session-title">Engineering deep-dive: platform reliability</div>
+              <div class="session-meta">Jordan Lee, VP Eng • 15 min</div>
+            </div>
+          </li>
+          <li>
+            <div class="time">11:45</div>
+            <div>
+              <div class="session-title">New hire spotlights</div>
+              <div class="session-meta">People &amp; Culture • 10 min</div>
+            </div>
+          </li>
+          <li>
+            <div class="time">11:55</div>
+            <div>
+              <div class="session-title">Open Q&amp;A</div>
+              <div class="session-meta">Leadership panel • 25 min</div>
+            </div>
+          </li>
+        </ul>
       </div>
     </div>
+
     <div>
+      <!-- New hires -->
+      <div class="card">
+        <h2>New hires this week <a href="#" class="more">Directory →</a></h2>
+        <div class="hires" id="hiresGrid">
+          <!-- populated by JS using deterministic SVG avatars so the page stays self-contained -->
+        </div>
+      </div>
+
+      <!-- Quick links -->
       <div class="card">
         <h2>Quick links</h2>
         <div class="quicklinks">
-          <a href="#">Submit IT ticket</a>
-          <a href="#">Request time off</a>
-          <a href="#">Org chart</a>
-          <a href="#">Pay & benefits</a>
-          <a href="#">Travel & expenses</a>
-          <a href="#">Learning hub</a>
+          <a href="#"><span class="ico">🎫</span> Submit IT ticket</a>
+          <a href="#"><span class="ico">🏖️</span> Request time off</a>
+          <a href="#"><span class="ico">🧭</span> Org chart</a>
+          <a href="#"><span class="ico">💰</span> Pay &amp; benefits</a>
+          <a href="#"><span class="ico">✈️</span> Travel &amp; expenses</a>
+          <a href="#"><span class="ico">📚</span> Learning hub</a>
         </div>
       </div>
+
+      <!-- Activity feed -->
+      <div class="card">
+        <h2>Recent activity</h2>
+        <ul class="feed">
+          <li>
+            <span class="icon">✅</span>
+            <div class="text"><strong>IT-4821</strong> — VPN access restored.</div>
+            <div class="when">2h ago</div>
+          </li>
+          <li>
+            <span class="icon">📝</span>
+            <div class="text"><strong>HR</strong> updated the parental-leave policy.</div>
+            <div class="when">5h ago</div>
+          </li>
+          <li>
+            <span class="icon">💬</span>
+            <div class="text"><strong>Jordan Lee</strong> posted in #engineering-announcements.</div>
+            <div class="when">yesterday</div>
+          </li>
+          <li>
+            <span class="icon">🎓</span>
+            <div class="text">Course "Secure coding 101" assigned by your manager.</div>
+            <div class="when">2 days ago</div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Need help -->
       <div class="card">
         <h2>Need help?</h2>
-        <p>Try the AI assistant first — it can resolve most password resets, software requests, and policy questions instantly. If your issue needs human attention, the assistant can hand you off to a live IT agent in ServiceNow.</p>
+        <p class="muted">The AI assistant resolves most password resets, software requests, and policy questions instantly. If your issue needs human attention, it'll hand you off to a live IT agent in ServiceNow — your conversation history comes along.</p>
       </div>
     </div>
   </main>
 
-  <button id="chatLauncher" aria-label="Open chat">💬</button>
+  <footer class="bottom">
+    <div>© Contoso Inc. — internal use only</div>
+    <div><a href="#">Privacy</a> · <a href="#">Accessibility</a> · <a href="#">Feedback</a></div>
+  </footer>
 
-  <div id="chatPanel" role="dialog" aria-label="Support chat">
+  <button id="chatLauncher" aria-label="Open support chat">
+    <span aria-hidden="true">💬</span>
+    <span class="unread" id="unreadBadge" aria-live="polite">0</span>
+  </button>
+
+  <div id="chatPanel" role="dialog" aria-label="Support chat" aria-modal="false">
     <div class="chat-header">
-      <div>
-        <div class="title" id="chatTitle">IT Support Assistant</div>
-        <div class="subtitle" id="chatSubtitle">AI-powered • Always on</div>
+      <div class="avatar" aria-hidden="true">
+        <!-- bot mark -->
+        <svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="rgba(255,255,255,0)"/><text x="50%" y="56%" text-anchor="middle" font-family="Segoe UI" font-size="18" font-weight="700" fill="#fff">🤖</text></svg>
       </div>
-      <button id="chatClose" aria-label="Close chat">×</button>
+      <div class="titles">
+        <div class="title" id="chatTitle">IT Support Assistant</div>
+        <div class="subtitle" id="chatSubtitle">
+          <span class="dot online" id="chatStatusDot" aria-hidden="true"></span>
+          <span id="chatSubtitleText">AI-powered • Always on</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="icon-btn" id="restartBtn" title="Restart chat" aria-label="Restart chat">↻</button>
+        <button class="icon-btn" id="endBtn" title="End chat" aria-label="End chat" disabled>⏻</button>
+        <button class="icon-btn" id="minimizeBtn" title="Minimize" aria-label="Minimize">—</button>
+        <button class="icon-btn" id="chatClose" title="Close" aria-label="Close chat">×</button>
+      </div>
     </div>
-    <div class="chat-status" id="chatStatus">Connected to AI assistant</div>
-    <div class="chat-log" id="chatLog"></div>
-    <button class="escalate-btn" id="escalateBtn">🙋 Talk to a person (ServiceNow)</button>
+    <div class="chat-status" id="chatStatus" role="status" aria-live="polite">Connected to AI assistant</div>
+    <div class="chat-log" id="chatLog" aria-live="polite" aria-relevant="additions"></div>
+    <button class="scroll-newest" id="scrollNewest" aria-label="Scroll to newest message">↓</button>
+    <div class="chat-quick-replies" id="quickReplies"></div>
     <form class="chat-input" id="chatForm">
-      <input type="text" id="chatInput" placeholder="Type your message..." autocomplete="off" />
-      <button type="submit" id="chatSend">Send</button>
+      <label for="chatInput" class="sr-only">Type a message</label>
+      <textarea id="chatInput" placeholder="Type your message…  (Shift+Enter for newline)" rows="1" autocomplete="off"></textarea>
+      <button type="submit" class="send-btn" id="chatSend" aria-label="Send">➤</button>
     </form>
+
+    <div class="confirm-overlay" id="confirmOverlay" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="confirm-box">
+        <h3 id="confirmTitle">Confirm</h3>
+        <p id="confirmMsg">Are you sure?</p>
+        <div class="actions">
+          <button class="btn-cancel" id="confirmCancel">Cancel</button>
+          <button class="btn-confirm" id="confirmOk">OK</button>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <script src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
   <script>
-    // ===== Minimal in-house chat UI driving Direct Line directly =====
-    // We deliberately do NOT use the Web Chat React UI here so the bridge
-    // can swap message routing between the bot and the ServiceNow rep.
+    // ============================================================
+    // New-hire avatars (self-contained SVG, deterministic colour)
+    // ============================================================
+    const HIRES = [
+      { name: 'Aiden Brooks',     role: 'Software Engineer, Platform' },
+      { name: 'Maya Hernandez',   role: 'Product Designer, Mobile' },
+      { name: 'Theo Park',        role: 'Account Executive, EMEA' },
+      { name: 'Priya Nadkarni',   role: 'Data Engineer, Analytics' },
+      { name: 'Liam O\u2019Connor', role: 'IT Support Specialist' },
+      { name: 'Sofía Romero',     role: 'People Ops Partner' },
+    ];
+    const PALETTE = ['#0f4c81', '#6366f1', '#0891b2', '#16a34a', '#d97706', '#be185d', '#7c3aed', '#0e7490'];
+    function colorFor(name) {
+      let h = 0;
+      for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+      return PALETTE[h % PALETTE.length];
+    }
+    function initialsFor(name) {
+      return name.split(/\s+/).map(p => p[0] || '').join('').slice(0, 2).toUpperCase();
+    }
+    function avatarSvg(name, size = 42) {
+      const initials = initialsFor(name);
+      const bg = colorFor(name);
+      // SVG with a soft top-light gradient and centered initials.
+      return `<svg viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" aria-label="${name}">
+        <defs><linearGradient id="g_${initials}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="rgba(255,255,255,0.25)"/><stop offset="1" stop-color="rgba(0,0,0,0.05)"/>
+        </linearGradient></defs>
+        <rect width="${size}" height="${size}" fill="${bg}"/>
+        <rect width="${size}" height="${size}" fill="url(#g_${initials})"/>
+        <text x="50%" y="55%" text-anchor="middle" dominant-baseline="middle"
+          font-family="Segoe UI, system-ui" font-size="${Math.round(size * 0.42)}" font-weight="700" fill="white">${initials}</text>
+      </svg>`;
+    }
+    (function renderHires() {
+      const grid = document.getElementById('hiresGrid');
+      grid.innerHTML = HIRES.map(h => `
+        <div class="hire" title="${h.name}">
+          <div class="avatar" aria-hidden="true">${avatarSvg(h.name)}</div>
+          <div>
+            <div class="name">${h.name}</div>
+            <div class="role">${h.role}</div>
+          </div>
+        </div>`).join('');
+    })();
 
+    // ============================================================
+    // Chat widget
+    // ============================================================
     const els = {
       launcher: document.getElementById('chatLauncher'),
+      unread: document.getElementById('unreadBadge'),
       panel: document.getElementById('chatPanel'),
       close: document.getElementById('chatClose'),
+      minimize: document.getElementById('minimizeBtn'),
+      restart: document.getElementById('restartBtn'),
+      end: document.getElementById('endBtn'),
       log: document.getElementById('chatLog'),
+      scrollNewest: document.getElementById('scrollNewest'),
       form: document.getElementById('chatForm'),
       input: document.getElementById('chatInput'),
       send: document.getElementById('chatSend'),
-      escalate: document.getElementById('escalateBtn'),
       status: document.getElementById('chatStatus'),
       title: document.getElementById('chatTitle'),
-      subtitle: document.getElementById('chatSubtitle'),
+      subtitleText: document.getElementById('chatSubtitleText'),
+      statusDot: document.getElementById('chatStatusDot'),
+      quickReplies: document.getElementById('quickReplies'),
+      confirm: {
+        overlay: document.getElementById('confirmOverlay'),
+        title: document.getElementById('confirmTitle'),
+        msg: document.getElementById('confirmMsg'),
+        ok: document.getElementById('confirmOk'),
+        cancel: document.getElementById('confirmCancel'),
+      },
     };
 
     const state = {
       mode: 'bot',          // 'bot' | 'queued' | 'live' | 'closed'
       directLine: null,
       conversationId: null,
-      bridgeSessionId: null,   // also used as Direct Line user id so the agent can pass it to backend tools
+      bridgeSessionId: null,
       ws: null,
       pollTimer: null,
-      userId: null,            // assigned from bridgeSessionId after init-session
+      userId: null,
+      typing: false,
+      typingEl: null,
+      unread: 0,
+      panelOpen: false,
+      atBottom: true,
+      started: false,
+      // Activity ids that we (the local user) posted via postActivity.
+      // Direct Line echoes our own activities back through activity$ — we
+      // render them locally the moment the user submits, so we must drop
+      // the echo to avoid a duplicate "Assistant" bubble that contains the
+      // user's own question text.
+      sentActivityIds: new Set(),
+      // Texts the local user just sent. Some Direct Line / Copilot Studio
+      // pipelines re-attribute the user's echo with role 'bot' and a new id,
+      // so id and role filters miss it. We dedupe by exact text as a final
+      // safety net.
+      sentTexts: [],
     };
 
-    function render(msg) {
-      const div = document.createElement('div');
-      div.className = 'msg ' + msg.kind;
-      if (msg.from) {
-        const w = document.createElement('span');
-        w.className = 'who';
-        w.textContent = msg.from;
-        div.appendChild(w);
+    // ---------------- Helpers ----------------
+    function fmtTime(d) {
+      d = d || new Date();
+      let h = d.getHours(), m = d.getMinutes();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return h + ':' + (m < 10 ? '0' + m : m) + ' ' + ampm;
+    }
+    function isAtBottom() {
+      const el = els.log;
+      return el.scrollTop + el.clientHeight >= el.scrollHeight - 24;
+    }
+    function maybeScroll() {
+      if (state.atBottom) {
+        els.log.scrollTop = els.log.scrollHeight;
+        els.scrollNewest.classList.remove('visible');
+      } else {
+        els.scrollNewest.classList.add('visible');
       }
-      div.appendChild(document.createTextNode(msg.text));
-      els.log.appendChild(div);
+    }
+    els.log.addEventListener('scroll', () => {
+      state.atBottom = isAtBottom();
+      if (state.atBottom) els.scrollNewest.classList.remove('visible');
+    });
+    els.scrollNewest.addEventListener('click', () => {
       els.log.scrollTop = els.log.scrollHeight;
+      state.atBottom = true;
+      els.scrollNewest.classList.remove('visible');
+    });
+
+    function bumpUnread() {
+      if (state.panelOpen) return;
+      state.unread += 1;
+      els.unread.textContent = state.unread > 99 ? '99+' : String(state.unread);
+      els.launcher.classList.add('has-unread');
+    }
+    function clearUnread() {
+      state.unread = 0;
+      els.unread.textContent = '0';
+      els.launcher.classList.remove('has-unread');
+    }
+
+    // ---------------- Render ----------------
+    function render(msg) {
+      // msg.kind: 'bot' | 'user' | 'rep' | 'system'
+      removeTyping();
+      if (msg.kind === 'system') {
+        const p = document.createElement('div');
+        p.className = 'msg system';
+        p.textContent = msg.text;
+        els.log.appendChild(p);
+      } else {
+        const row = document.createElement('div');
+        row.className = 'msg-row ' + msg.kind;
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar sm';
+        avatar.setAttribute('aria-hidden', 'true');
+        const labelName = msg.from || (msg.kind === 'bot' ? 'AI' : msg.kind === 'rep' ? (msg.rep || 'Agent') : 'You');
+        avatar.innerHTML = avatarSvg(labelName, 28);
+        const bubble = document.createElement('div');
+        bubble.className = 'msg';
+        if (msg.from && msg.kind !== 'user') {
+          const w = document.createElement('span');
+          w.className = 'who';
+          w.textContent = msg.from;
+          bubble.appendChild(w);
+        }
+        const body = document.createElement('span');
+        body.textContent = msg.text;
+        bubble.appendChild(body);
+        const ts = document.createElement('span');
+        ts.className = 'ts';
+        ts.textContent = fmtTime();
+        bubble.appendChild(ts);
+        row.appendChild(avatar);
+        row.appendChild(bubble);
+        els.log.appendChild(row);
+      }
+      maybeScroll();
+      if (msg.kind === 'bot' || msg.kind === 'rep') bumpUnread();
+    }
+
+    function showTyping(who) {
+      removeTyping();
+      const row = document.createElement('div');
+      row.className = 'msg-row ' + (state.mode === 'live' ? 'rep' : 'bot');
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar sm';
+      avatar.innerHTML = avatarSvg(who || 'AI', 28);
+      const bubble = document.createElement('div');
+      bubble.className = 'msg';
+      bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+      row.appendChild(avatar);
+      row.appendChild(bubble);
+      els.log.appendChild(row);
+      state.typingEl = row;
+      maybeScroll();
+    }
+    function removeTyping() {
+      if (state.typingEl) { state.typingEl.remove(); state.typingEl = null; }
     }
 
     function setStatus(text, cls) {
       els.status.textContent = text;
       els.status.className = 'chat-status' + (cls ? ' ' + cls : '');
     }
-
-    function setMode(mode, opts = {}) {
+    function setMode(mode, opts) {
+      opts = opts || {};
       state.mode = mode;
       if (mode === 'bot') {
         els.title.textContent = 'IT Support Assistant';
-        els.subtitle.textContent = 'AI-powered • Always on';
-        els.escalate.disabled = false;
+        els.subtitleText.textContent = 'AI-powered • Always on';
+        els.statusDot.className = 'dot online';
         setStatus('Connected to AI assistant', '');
+        els.end.disabled = true;
+        renderQuickReplies(['Reset my password', 'Request software', 'Connect to VPN', 'Talk to a person']);
       } else if (mode === 'queued') {
         els.title.textContent = 'Connecting to support…';
-        els.subtitle.textContent = opts.interactionNumber ? 'Ticket ' + opts.interactionNumber : 'Please wait';
-        els.escalate.disabled = true;
+        els.subtitleText.textContent = opts.interactionNumber ? 'Ticket ' + opts.interactionNumber : 'Please wait';
+        els.statusDot.className = 'dot busy';
         setStatus('Waiting for the next available agent…', 'queued');
+        els.end.disabled = false;
+        renderQuickReplies([]);
       } else if (mode === 'live') {
         els.title.textContent = (opts.repName || 'Support agent') + ' (live)';
-        els.subtitle.textContent = opts.interactionNumber ? 'Ticket ' + opts.interactionNumber : 'Live chat';
-        els.escalate.disabled = true;
+        els.subtitleText.textContent = opts.interactionNumber ? 'Ticket ' + opts.interactionNumber : 'Live chat';
+        els.statusDot.className = 'dot online';
         setStatus('Live chat with ' + (opts.repName || 'agent'), 'live');
+        els.end.disabled = false;
+        renderQuickReplies([]);
       } else if (mode === 'closed') {
         els.title.textContent = 'Chat ended';
-        els.subtitle.textContent = '';
-        els.escalate.disabled = true;
-        setStatus('This live chat has ended.', 'closed');
+        els.subtitleText.textContent = 'Start a new chat to continue';
+        els.statusDot.className = 'dot';
+        setStatus('This chat has ended.', 'closed');
+        els.end.disabled = true;
+        renderQuickReplies(['Start a new chat']);
       }
     }
 
-    // ---------------- Bridge session bootstrap ----------------
+    function renderQuickReplies(items) {
+      els.quickReplies.innerHTML = '';
+      items.forEach(t => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = t;
+        b.addEventListener('click', () => {
+          if (state.mode === 'closed' && t === 'Start a new chat') { restartChat(true); return; }
+          els.input.value = t;
+          els.form.requestSubmit();
+        });
+        els.quickReplies.appendChild(b);
+      });
+    }
+
+    // ---------------- Confirm modal ----------------
+    function confirmAction(title, msg, okLabel, danger) {
+      return new Promise(resolve => {
+        els.confirm.title.textContent = title;
+        els.confirm.msg.textContent = msg;
+        els.confirm.ok.textContent = okLabel || 'OK';
+        els.confirm.ok.className = 'btn-confirm' + (danger ? ' danger' : '');
+        els.confirm.overlay.classList.add('open');
+        const cleanup = (val) => {
+          els.confirm.overlay.classList.remove('open');
+          els.confirm.ok.removeEventListener('click', onOk);
+          els.confirm.cancel.removeEventListener('click', onCancel);
+          resolve(val);
+        };
+        const onOk = () => cleanup(true);
+        const onCancel = () => cleanup(false);
+        els.confirm.ok.addEventListener('click', onOk);
+        els.confirm.cancel.addEventListener('click', onCancel);
+      });
+    }
+
+    // ---------------- Bridge / DL plumbing ----------------
     async function initBridgeSession() {
       try {
         const r = await fetch('/api/servicenow/init-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_display_name: 'Intranet User' }),
+          body: JSON.stringify({ user_display_name: 'Aria Patel' }),
         });
         const data = await r.json();
         if (!data.session_id) throw new Error('no session_id');
         state.bridgeSessionId = data.session_id;
-        state.userId = data.session_id;  // same id used as Direct Line user id
-        // Open the rep-reply WebSocket up-front so when the agent calls /agent/escalate
-        // we already have a live channel for the 'rep joined' status push.
+        state.userId = data.session_id;
         openWebSocket();
-        // Always start polling too — under gunicorn gthread the WS may open but
-        // never deliver server-pushed events, so polling is the reliable path
-        // for detecting agent-initiated state transitions (escalate via tool).
         startPolling();
         return true;
       } catch (e) {
@@ -311,7 +958,6 @@
       }
     }
 
-    // ---------------- Direct Line / bot ----------------
     async function startDirectLine() {
       try {
         const r = await fetch('/directline/token', {
@@ -326,31 +972,51 @@
         }
         state.directLine = window.WebChat.createDirectLine({ token: tokenData.token });
         state.directLine.activity$.subscribe((act) => {
-          if (act.from && act.from.id === state.userId) return;
-
-          // Copilot Studio raises this event when a topic invokes
-          // TransferConversationV2 (system Escalate or any custom topic with
-          // generic handoff configured). Per
-          // https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-hand-off
-          // the activity has type='event', name='handoff.initiate', and
-          // value carries the va_* context (last topic, phrases, etc.).
+          // Debug: log every DL activity so we can see what the bot returns.
+          try {
+            console.log('[DL activity]', act && act.type,
+              'from.id=',   act && act.from && act.from.id,
+              'from.role=', act && act.from && act.from.role,
+              'text=',      act && act.text,
+              act);
+          } catch (_) {}
+          // Drop our own echoes. Direct Line replays every activity we post
+          // back through activity$ (so apps that DON'T render locally can use
+          // it as the source of truth). We render locally on submit, so the
+          // echo would produce a duplicate "Assistant" bubble containing the
+          // user's own question. The id and role filters below catch the
+          // common cases; sentActivityIds catches everything else by id.
+          if (act.id && state.sentActivityIds.has(act.id)) {
+            state.sentActivityIds.delete(act.id);
+            return;
+          }
+          const fromRole = (act.from && act.from.role) || '';
+          const fromId   = (act.from && act.from.id)   || '';
+          if (fromRole === 'user') return;
+          if (fromId && fromId === state.userId) return;
+          if (fromId && state.directLine && state.directLine.user
+              && fromId === state.directLine.user.id) return;
           if (act.type === 'event' && act.name === 'handoff.initiate') {
-            if (state.mode !== 'bot') return; // already handed off
+            if (state.mode !== 'bot') return;
             const ctx = act.value || {};
             const opening = ctx.va_AgentMessage || ctx.va_LastPhrases || ctx.va_LastTopic || '';
-            console.log('[handoff] handoff.initiate received', { ctx });
-            // Reuse the existing /api/servicenow/escalate route which already
-            // creates the SN interaction, transitions the bridge to QUEUED,
-            // and pushes status updates over the WS we opened in initBridgeSession.
             escalate(typeof opening === 'string' ? opening : JSON.stringify(opening));
             return;
           }
-
           if (act.type !== 'message') return;
-          if (state.mode !== 'bot') return; // ignore stale bot messages once we've handed off
-          if (act.text) render({ kind: 'bot', from: 'Assistant', text: act.text });
+          if (state.mode !== 'bot') return;
+          // Final safety net: if the incoming "bot" message text is identical
+          // to something the local user just sent, treat it as an echo.
+          if (act.text) {
+            const norm = String(act.text).trim();
+            const i = state.sentTexts.indexOf(norm);
+            if (i !== -1) { state.sentTexts.splice(i, 1); return; }
+          }
+          if (act.text) { removeTyping(); render({ kind: 'bot', from: 'Assistant', text: act.text }); }
         });
         state.directLine.connectionStatus$.subscribe(() => {
+          // 0 Uninitialized, 1 Connecting, 2 Online, 3 ExpiredToken, 4 FailedToConnect, 5 Ended
+          try { console.log('[DL status]', state.directLine.connectionStatus$.value, 'conv=', state.directLine.conversationId); } catch (_) {}
           if (state.directLine.conversationId) state.conversationId = state.directLine.conversationId;
         });
       } catch (e) {
@@ -360,17 +1026,24 @@
 
     function sendToBot(text) {
       if (!state.directLine) return;
+      showTyping('Assistant');
+      // Remember the exact text we sent so we can drop the inevitable echo.
+      const norm = String(text).trim();
+      state.sentTexts.push(norm);
+      if (state.sentTexts.length > 20) state.sentTexts.shift();
       state.directLine
         .postActivity({
-          from: { id: state.userId },
+          from: { id: state.userId, role: 'user' },
           type: 'message',
           text,
           channelData: { bridgeSessionId: state.bridgeSessionId },
         })
-        .subscribe(() => {}, (e) => render({ kind: 'system', text: 'Bot send failed: ' + e.message }));
+        .subscribe(
+          (id) => { if (id) state.sentActivityIds.add(id); },
+          (e)  => { removeTyping(); render({ kind: 'system', text: 'Bot send failed: ' + e.message }); }
+        );
     }
 
-    // ---------------- ServiceNow escalation ----------------
     async function escalate(openingMessage) {
       try {
         setMode('queued');
@@ -379,8 +1052,9 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            session_id: state.bridgeSessionId || '',
             opening_message: openingMessage || '',
-            user_display_name: 'Intranet User',
+            user_display_name: 'Aria Patel',
           }),
         });
         const data = await r.json();
@@ -401,6 +1075,10 @@
 
     async function sendToRep(text) {
       try {
+        // No typing indicator here: live agents don't echo back instantly,
+        // so the dots would just hang until the rep eventually replies. The
+        // rep's actual typing event (if/when SN sends one) can drive the
+        // indicator instead.
         const r = await fetch('/api/servicenow/user-message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -419,23 +1097,11 @@
       if (!state.bridgeSessionId) return;
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       const url = proto + '//' + location.host + '/ws/intranet/' + state.bridgeSessionId;
-      try {
-        state.ws = new WebSocket(url);
-      } catch (e) {
-        render({ kind: 'system', text: 'WebSocket unavailable; falling back to polling.' });
-        startPolling();
-        return;
-      }
-      state.ws.onmessage = (evt) => {
-        try { handleBridgeEvent(JSON.parse(evt.data)); } catch (_) {}
-      };
-      state.ws.onclose = () => {
-        // If the chat isn't closed yet, try polling as a fallback.
-        if (state.mode !== 'closed') startPolling();
-      };
-      state.ws.onerror = () => {
-        startPolling();
-      };
+      try { state.ws = new WebSocket(url); }
+      catch (e) { startPolling(); return; }
+      state.ws.onmessage = (evt) => { try { handleBridgeEvent(JSON.parse(evt.data)); } catch (_) {} };
+      state.ws.onclose = () => { if (state.mode !== 'closed') startPolling(); };
+      state.ws.onerror = () => { startPolling(); };
     }
 
     function startPolling() {
@@ -446,11 +1112,8 @@
           if (!r.ok) return;
           const data = await r.json();
           (data.events || []).forEach(handleBridgeEvent);
-          // Detect agent-driven state transitions (escalate via tool) when the
-          // WS hasn't delivered a 'status' event (e.g. gunicorn worker mismatch).
           if (data.state && data.state !== state.mode) {
             if (data.state === 'queued' && state.mode === 'bot') {
-              // Stay in the same chat panel; show queued status until rep joins.
               setMode('queued', { interactionNumber: data.interaction_number });
               render({ kind: 'system', text: 'Connecting you to a live IT agent…' });
             } else if (data.state === 'live' && state.mode !== 'live') {
@@ -471,10 +1134,7 @@
 
     function handleBridgeEvent(evt) {
       if (evt.type === 'status') {
-        if (evt.state === 'queued') {
-          setMode('queued', { interactionNumber: evt.interaction_number });
-          return;
-        }
+        if (evt.state === 'queued') { setMode('queued', { interactionNumber: evt.interaction_number }); return; }
         if (evt.state === 'live') {
           setMode('live', { repName: evt.rep_name });
           render({ kind: 'system', text: (evt.rep_name || 'Agent') + ' joined the chat.' });
@@ -484,58 +1144,134 @@
           if (state.ws) try { state.ws.close(); } catch (_) {}
         }
       } else if (evt.type === 'message' && evt.from === 'rep') {
+        removeTyping();
         render({ kind: 'rep', from: evt.rep_name || 'Agent', text: evt.text });
       } else if (evt.type === 'error') {
-        // Don't surface transient bridge errors in the UI; fall back to polling.
-        console.warn('bridge ws error:', evt.error);
         if (state.ws) try { state.ws.close(); } catch (_) {}
         startPolling();
       }
     }
 
-    // ---------------- Wire UI ----------------
-    els.launcher.addEventListener('click', () => {
-      els.panel.classList.add('open');
-      els.launcher.style.display = 'none';
-      els.input.focus();
-    });
-    els.close.addEventListener('click', () => {
-      els.panel.classList.remove('open');
-      els.launcher.style.display = '';
-    });
+    // ---------------- Chat actions: end / restart ----------------
+    async function endChat() {
+      if (state.mode === 'bot' || state.mode === 'closed') return;
+      const ok = await confirmAction(
+        'End this chat?',
+        'Your conversation with the agent will be closed. The ticket stays in ServiceNow.',
+        'End chat', true
+      );
+      if (!ok) return;
+      setMode('closed');
+      render({ kind: 'system', text: 'You ended the chat.' });
+      try {
+        await fetch('/api/servicenow/user-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: state.bridgeSessionId, text: '[user ended the chat]' }),
+        });
+      } catch (_) {}
+      if (state.ws) try { state.ws.close(); } catch (_) {}
+      if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+    }
 
-    els.escalate.addEventListener('click', () => {
-      const lastUserMsg = Array.from(els.log.querySelectorAll('.msg.user')).pop();
-      const opening = lastUserMsg ? lastUserMsg.textContent.replace(/^YOU/i, '').trim() : '';
-      escalate(opening);
+    async function restartChat(skipConfirm) {
+      if (!skipConfirm) {
+        const ok = await confirmAction(
+          'Start a new chat?',
+          'Your current conversation will be cleared from this window. If you\u2019re currently with an agent, your existing ticket will stay open in ServiceNow.',
+          'Start over'
+        );
+        if (!ok) return;
+      }
+      // Tear down existing session.
+      if (state.ws) try { state.ws.close(); } catch (_) {}
+      if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+      state.directLine = null;
+      state.bridgeSessionId = null;
+      state.userId = null;
+      state.conversationId = null;
+      els.log.innerHTML = '';
+      removeTyping();
+      setMode('bot');
+      render({ kind: 'bot', from: 'Assistant', text: 'Hi! I can help with IT questions. Tell me what you need help with — I can answer common questions, log a ticket for you, or connect you with a live IT specialist if needed.' });
+      const ok2 = await initBridgeSession();
+      if (ok2) startDirectLine();
+    }
+
+    // ---------------- UI wiring ----------------
+    function openPanel() {
+      els.panel.classList.add('open');
+      state.panelOpen = true;
+      els.launcher.style.display = 'none';
+      clearUnread();
+      els.input.focus();
+    }
+    function closePanel(minimize) {
+      els.panel.classList.remove('open');
+      state.panelOpen = false;
+      els.launcher.style.display = '';
+      if (!minimize) {
+        // Full close: tear down so re-opening starts a fresh session.
+        if (state.ws) try { state.ws.close(); } catch (_) {}
+        if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+        state.started = false;
+        els.log.innerHTML = '';
+        setMode('bot');
+      }
+    }
+
+    els.launcher.addEventListener('click', async () => {
+      openPanel();
+      if (!state.started) {
+        state.started = true;
+        render({ kind: 'bot', from: 'Assistant', text: 'Hi! I can help with IT questions. Tell me what you need help with — I can answer common questions, log a ticket for you, or connect you with a live IT specialist if needed.' });
+        const ok = await initBridgeSession();
+        if (ok) startDirectLine();
+      }
+    });
+    els.minimize.addEventListener('click', () => closePanel(true));
+    els.close.addEventListener('click', () => closePanel(false));
+    els.restart.addEventListener('click', () => restartChat(false));
+    els.end.addEventListener('click', endChat);
+
+    // Auto-grow textarea + Enter to send (Shift+Enter = newline).
+    els.input.addEventListener('input', () => {
+      els.input.style.height = 'auto';
+      els.input.style.height = Math.min(els.input.scrollHeight, 120) + 'px';
+    });
+    els.input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        els.form.requestSubmit();
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && state.panelOpen && !els.confirm.overlay.classList.contains('open')) {
+        closePanel(true);
+      }
     });
 
     els.form.addEventListener('submit', (e) => {
       e.preventDefault();
       const text = els.input.value.trim();
       if (!text) return;
-      els.input.value = '';
-      render({ kind: 'user', from: 'You', text });
-      if (state.mode === 'bot') {
-        sendToBot(text);
-      } else if (state.mode === 'live') {
-        sendToRep(text);
-      } else if (state.mode === 'queued') {
-        // Queue locally; will be flushed when LIVE. For simplicity send anyway —
-        // it lands as work_notes on the interaction so the rep sees it on claim.
-        sendToRep(text);
+      if (state.mode === 'closed') {
+        // Convenience: typing in a closed chat starts a fresh one.
+        restartChat(true).then(() => {
+          els.input.value = text;
+          els.form.requestSubmit();
+        });
+        return;
       }
+      els.input.value = '';
+      els.input.style.height = 'auto';
+      render({ kind: 'user', from: 'You', text });
+      if (state.mode === 'bot') sendToBot(text);
+      else if (state.mode === 'live' || state.mode === 'queued') sendToRep(text);
     });
 
-    // Render an opening message and start the bot connection on first open.
-    let started = false;
-    els.launcher.addEventListener('click', async () => {
-      if (started) return;
-      started = true;
-      render({ kind: 'bot', from: 'Assistant', text: 'Hi! I can help with IT questions. Tell me what you need help with — I can answer common questions, log a ticket for you, or connect you with a live IT specialist if needed.' });
-      const ok = await initBridgeSession();
-      if (ok) startDirectLine();
-    });
+    // Initial mode + quick replies (visible before the panel opens, harmless).
+    setMode('bot');
   </script>
 </body>
 </html>

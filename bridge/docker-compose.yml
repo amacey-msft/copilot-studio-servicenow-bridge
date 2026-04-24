@@ -7,5 +7,12 @@ services:
     image: copilot-studio-servicenow-bridge:dev
     env_file: .env
     ports:
-      - "5000:5000"
+      # Host 5001 -> container 5000 (5000 is often busy on dev machines).
+      - "5001:5000"
+    # Mount source so edits to web/ and bridge/ apply on container restart
+    # without a full image rebuild.
+    volumes:
+      - ../web:/app/web:ro
+      - ./app.py:/app/bridge/app.py:ro
+      - ./servicenow_bridge.py:/app/bridge/servicenow_bridge.py:ro
     restart: unless-stopped
