@@ -748,6 +748,12 @@
       panelOpen: false,
       atBottom: true,
       started: false,
+      // Activity ids that we (the local user) posted via postActivity.
+      // Direct Line echoes our own activities back through activity$ — we
+      // render them locally the moment the user submits, so we must drop
+      // the echo to avoid a duplicate "Assistant" bubble that contains the
+      // user's own question text.
+      sentActivityIds: new Set(),
     };
 
     // ---------------- Helpers ----------------
@@ -963,11 +969,16 @@
         state.directLine.activity$.subscribe((act) => {
           // Debug: log every DL activity so we can see what the bot returns.
           try { console.log('[DL activity]', act && act.type, act && act.from && act.from.id, act); } catch (_) {}
-          // Direct Line echoes the user's own activities back. The id we post
-          // with (state.userId == bridge session id) is NOT the id Direct Line
-          // assigns to the conversation user (Copilot Studio mints its own
-          // GUID at token-mint time), so an id-only filter doesn't catch the
-          // echo. Use role + id together.
+          // Drop our own echoes. Direct Line replays every activity we post
+          // back through activity$ (so apps that DON'T render locally can use
+          // it as the source of truth). We render locally on submit, so the
+          // echo would produce a duplicate "Assistant" bubble containing the
+          // user's own question. The id and role filters below catch the
+          // common cases; sentActivityIds catches everything else by id.
+          if (act.id && state.sentActivityIds.has(act.id)) {
+            state.sentActivityIds.delete(act.id);
+            return;
+          }
           const fromRole = (act.from && act.from.role) || '';
           const fromId   = (act.from && act.from.id)   || '';
           if (fromRole === 'user') return;
@@ -1000,12 +1011,15 @@
       showTyping('Assistant');
       state.directLine
         .postActivity({
-          from: { id: state.userId },
+          from: { id: state.userId, role: 'user' },
           type: 'message',
           text,
           channelData: { bridgeSessionId: state.bridgeSessionId },
         })
-        .subscribe(() => {}, (e) => { removeTyping(); render({ kind: 'system', text: 'Bot send failed: ' + e.message }); });
+        .subscribe(
+          (id) => { if (id) state.sentActivityIds.add(id); },
+          (e)  => { removeTyping(); render({ kind: 'system', text: 'Bot send failed: ' + e.message }); }
+        );
     }
 
     async function escalate(openingMessage) {
