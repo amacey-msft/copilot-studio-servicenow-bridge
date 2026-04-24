@@ -337,6 +337,21 @@ def escalate():
     if s is None:
         s = _new_session(user_email=user_email, user_display_name=user_display_name)
 
+    # Idempotency: if this session already has an interaction (e.g. the agent
+    # already called /api/servicenow/agent/escalate from its HTTP tool, then
+    # emitted handoff.initiate which causes the browser to call us here),
+    # return the existing one instead of opening a second chat in ServiceNow.
+    if s.interaction_sys_id:
+        return jsonify(
+            {
+                "session_id": s.sid,
+                "state": s.state,
+                "interaction_number": s.interaction_number,
+                "interaction_sys_id": s.interaction_sys_id,
+                "already_escalated": True,
+            }
+        )
+
     try:
         result = _escalate_session(s, opening_message)
     except requests.HTTPError as exc:
