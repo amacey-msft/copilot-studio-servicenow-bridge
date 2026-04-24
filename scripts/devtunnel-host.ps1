@@ -13,7 +13,8 @@
 #>
 [CmdletBinding()]
 param(
-    [int]$Port = 5001
+    [int]$Port = 5001,
+    [string]$Label = 'copilot-sn-bridge'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,7 +23,15 @@ if (-not (Get-Command devtunnel -ErrorAction SilentlyContinue)) {
     throw "devtunnel CLI not found. Install with: winget install Microsoft.devtunnel"
 }
 
-Write-Host "Hosting dev tunnel -> http://localhost:$Port" -ForegroundColor Cyan
+# Look up the persistent tunnel ID by label so the public URL stays stable
+# across restarts. If none exists, run scripts/devtunnel-create.ps1 first.
+$line = devtunnel list 2>&1 | Select-String -Pattern $Label | Select-Object -First 1
+if (-not $line) {
+    throw "No tunnel with label '$Label' found. Run .\scripts\devtunnel-create.ps1 first."
+}
+$tunnelId = ($line.ToString() -split '\s+')[0]
+
+Write-Host "Hosting tunnel $tunnelId -> http://localhost:$Port" -ForegroundColor Cyan
 Write-Host "Press Ctrl+C to stop hosting (the tunnel itself remains)." -ForegroundColor Yellow
 Write-Host ""
-devtunnel host --port-numbers $Port --allow-anonymous
+devtunnel host $tunnelId

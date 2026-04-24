@@ -39,7 +39,16 @@ if ($existing) {
 }
 
 Write-Host "Creating new dev tunnel labelled '$Label' on port $Port..." -ForegroundColor Cyan
-devtunnel create --allow-anonymous --labels $Label
-devtunnel port create -p $Port --protocol http
+devtunnel create --allow-anonymous --labels $Label | Out-Host
+devtunnel port create -p $Port --protocol http | Out-Host
 
-Write-Host "`nTunnel created. To start hosting, run: .\scripts\devtunnel-host.ps1" -ForegroundColor Green
+# Print the resulting public URL hint for convenience.
+$line = devtunnel list 2>&1 | Select-String -Pattern $Label | Select-Object -First 1
+if ($line) {
+    $tunnelId = ($line.ToString() -split '\s+')[0]
+    # Tunnel IDs look like 'jolly-river-lw1s3ms.use'. The public URL slug is
+    # the trailing token before '.use', so derive a hint URL.
+    Write-Host "`nTunnel ID: $tunnelId" -ForegroundColor Green
+    Write-Host "Public URL will appear when you host: https://<slug>-$Port.use.devtunnels.ms" -ForegroundColor Green
+}
+Write-Host "`nTo start hosting, run: .\scripts\devtunnel-host.ps1" -ForegroundColor Green
