@@ -22,7 +22,7 @@ import os
 import pathlib
 
 import requests
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory
 from flask_sock import Sock
 
 from servicenow_bridge import bp as servicenow_bp, register_websocket
@@ -56,36 +56,48 @@ def create_app() -> Flask:
         Two supported modes (in order of preference):
 
         1. ``DIRECTLINE_TOKEN_ENDPOINT`` -- the Copilot Studio "Token
-           endpoint" URL (Channels -> Custom website). The bridge POSTs to
-           it and returns the JSON straight through. This is the
-           recommended path because it requires no shared secret in the
-           bridge.
+           endpoint" URL (Channels -> Custom website). The bridge GETs it
+           and returns the JSON straight through. The browser POSTs us a
+           ``{"user_id": "..."}`` body (the bridge session id) which we
+           append as ``?userId=...`` so Copilot Studio binds it to the
+           Direct Line conversation -- the agent then sees
+           ``System.Activity.From.Id == <bridge session id>`` and can pass
+           it back to the bridge HTTP tools as a stable correlation key.
+           This is the recommended path because it requires no shared
+           secret in the bridge.
 
         2. ``DIRECTLINE_SECRET`` -- a Direct Line channel secret from the
-           Azure Bot resource (Bot Framework Direct Line channel). The
-           bridge POSTs to ``https://directline.botframework.com/v3/directline/tokens/generate``
-           with ``Authorization: Bearer <secret>`` and returns the JSON.
-           Use this if the Power Platform token endpoint isn't available
-           (e.g. agent isn't published to a custom-website channel).
+           Azure Bot resource. The bridge POSTs to
+           ``https://directline.botframework.com/v3/directline/tokens/generate``
+           with ``Authorization: Bearer <secret>`` and a ``{"user": {"id": ...}}``
+           body so the same correlation key is bound to the conversation.
 
         Returns ``{"token": "...", "conversationId": "...", "expires_in": 3600}``
         for BotFramework WebChat.
         """
+        body      = request.get_json(silent=True) or {}
+        user_id   = str(body.get("user_id") or "").strip()
         token_url = os.environ.get("DIRECTLINE_TOKEN_ENDPOINT", "").strip()
         secret    = os.environ.get("DIRECTLINE_SECRET", "").strip()
 
-        # Try the Copilot Studio token endpoint first.
+        # 1. Copilot Studio token endpoint (GET, with userId query param).
         if token_url:
+            url = token_url
+            if user_id:
+                from urllib.parse import quote
+                sep = "&" if "?" in url else "?"
+                url = f"{url}{sep}userId={quote(user_id)}"
             try:
-                r = requests.post(token_url, timeout=15)
+                r = requests.get(url, timeout=15)
                 if r.ok:
                     try:
                         return jsonify(r.json())
                     except ValueError:
-                        pass  # fall through to secret path
-                # Non-2xx: log and try secret fallback if present.
-                upstream_detail = r.text[:500]
-                upstream_status = r.status_code
+                        upstream_detail = r.text[:500]
+                        upstream_status = r.status_code
+                else:
+                    upstream_detail = r.text[:500]
+                    upstream_status = r.status_code
             except requests.RequestException as exc:
                 upstream_detail = str(exc)
                 upstream_status = None
@@ -93,12 +105,14 @@ def create_app() -> Flask:
             upstream_detail = None
             upstream_status = None
 
-        # Fallback: mint a token from the Direct Line channel secret.
+        # 2. Fallback: mint a token from the Direct Line channel secret.
         if secret:
+            payload = {"user": {"id": user_id}} if user_id else None
             try:
                 r = requests.post(
                     "https://directline.botframework.com/v3/directline/tokens/generate",
                     headers={"Authorization": f"Bearer {secret}"},
+                    json=payload,
                     timeout=15,
                 )
             except requests.RequestException as exc:
