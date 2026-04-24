@@ -1075,19 +1075,20 @@
 
     async function sendToRep(text) {
       try {
-        showTyping('Agent');
+        // No typing indicator here: live agents don't echo back instantly,
+        // so the dots would just hang until the rep eventually replies. The
+        // rep's actual typing event (if/when SN sends one) can drive the
+        // indicator instead.
         const r = await fetch('/api/servicenow/user-message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: state.bridgeSessionId, text }),
         });
         if (!r.ok) {
-          removeTyping();
           const data = await r.json().catch(() => ({}));
           render({ kind: 'system', text: 'Could not deliver to agent: ' + (data.error || r.status) });
         }
       } catch (e) {
-        removeTyping();
         render({ kind: 'system', text: 'Send to agent failed: ' + e.message });
       }
     }
