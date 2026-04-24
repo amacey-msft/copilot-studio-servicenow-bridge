@@ -961,6 +961,8 @@
         }
         state.directLine = window.WebChat.createDirectLine({ token: tokenData.token });
         state.directLine.activity$.subscribe((act) => {
+          // Debug: log every DL activity so we can see what the bot returns.
+          try { console.log('[DL activity]', act && act.type, act && act.from && act.from.id, act); } catch (_) {}
           if (act.from && act.from.id === state.userId) return;
           if (act.type === 'event' && act.name === 'handoff.initiate') {
             if (state.mode !== 'bot') return;
@@ -974,6 +976,8 @@
           if (act.text) { removeTyping(); render({ kind: 'bot', from: 'Assistant', text: act.text }); }
         });
         state.directLine.connectionStatus$.subscribe(() => {
+          // 0 Uninitialized, 1 Connecting, 2 Online, 3 ExpiredToken, 4 FailedToConnect, 5 Ended
+          try { console.log('[DL status]', state.directLine.connectionStatus$.value, 'conv=', state.directLine.conversationId); } catch (_) {}
           if (state.directLine.conversationId) state.conversationId = state.directLine.conversationId;
         });
       } catch (e) {
