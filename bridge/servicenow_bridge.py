@@ -80,6 +80,10 @@ class BridgeSession:
     pending: deque = field(default_factory=deque)
     websocket: Any = None  # flask_sock Server, set when client connects
     lock: threading.Lock = field(default_factory=threading.Lock)
+    # Texts the user just sent into ServiceNow. The SN sys_cs_message BR
+    # fires on every insert (including ours), so the webhook can re-deliver
+    # the user's own text as a rep message. We drop the matching echo.
+    recent_user_texts: deque = field(default_factory=lambda: deque(maxlen=20))
 
 
 _sessions: dict[str, BridgeSession] = {}
@@ -179,6 +183,11 @@ def sn_append_user_message(session: BridgeSession, text: str) -> None:
     updates live (vs. raw GlideRecord insert which only persists the row)."""
     if not (session.conversation_sys_id and session.sn_user_sys_id):
         return
+    # Remember exactly what we sent so the webhook can drop the echo.
+    norm = (text or "").strip()
+    if norm:
+        with session.lock:
+            session.recent_user_texts.append(norm)
     body = {
         "conversation_sys_id": session.conversation_sys_id,
         "user_sys_id": session.sn_user_sys_id,
@@ -443,10 +452,25 @@ def webhook():
                 s.rep_name = rep_name
             _push_to_browser(s, {"type": "status", "state": s.state, "rep_name": s.rep_name})
         if text:
-            _push_to_browser(
-                s,
-                {"type": "message", "from": "rep", "rep_name": s.rep_name, "text": text},
-            )
+            # Drop our own echo: SN's BR fires on every sys_cs_message insert,
+            # including the consumer-direction inserts we just made on behalf
+            # of the user. Match on exact text against the per-session buffer.
+            norm = text.strip()
+            with s.lock:
+                try:
+                    s.recent_user_texts.remove(norm)
+                    is_echo = True
+                except ValueError:
+                    is_echo = False
+            if is_echo:
+                current_app.logger.info(
+                    "[webhook] dropping user-text echo for session=%s text=%r", s.sid, norm[:80]
+                )
+            else:
+                _push_to_browser(
+                    s,
+                    {"type": "message", "from": "rep", "rep_name": s.rep_name, "text": text},
+                )
 
     return jsonify({"ok": True})
 
