@@ -74,6 +74,19 @@ docker compose -f bridge/docker-compose.yml up -d --build
 .\scripts\devtunnel-host.ps1
 ```
 
+Once the tunnel is up, set `BRIDGE_PUBLIC_URL` in `bridge/.env` to its
+HTTPS URL (e.g. `https://<id>-5001.use.devtunnels.ms`) and run:
+
+```powershell
+# Pushes BRIDGE_PUBLIC_URL into ServiceNow's sys_property and into the
+# Copilot Studio HTTP-tool botcomponents in one shot.
+.\scripts\sync-bridge-url.ps1
+```
+
+That eliminates the manual UI edits whenever the tunnel URL changes (or
+whenever a different developer clones the repo and starts their own
+tunnel).
+
 Or do it by hand:
 
 ```powershell
