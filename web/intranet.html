@@ -963,7 +963,17 @@
         state.directLine.activity$.subscribe((act) => {
           // Debug: log every DL activity so we can see what the bot returns.
           try { console.log('[DL activity]', act && act.type, act && act.from && act.from.id, act); } catch (_) {}
-          if (act.from && act.from.id === state.userId) return;
+          // Direct Line echoes the user's own activities back. The id we post
+          // with (state.userId == bridge session id) is NOT the id Direct Line
+          // assigns to the conversation user (Copilot Studio mints its own
+          // GUID at token-mint time), so an id-only filter doesn't catch the
+          // echo. Use role + id together.
+          const fromRole = (act.from && act.from.role) || '';
+          const fromId   = (act.from && act.from.id)   || '';
+          if (fromRole === 'user') return;
+          if (fromId && fromId === state.userId) return;
+          if (fromId && state.directLine && state.directLine.user
+              && fromId === state.directLine.user.id) return;
           if (act.type === 'event' && act.name === 'handoff.initiate') {
             if (state.mode !== 'bot') return;
             const ctx = act.value || {};
