@@ -43,7 +43,13 @@ def create_app() -> Flask:
     def _index():
         # Serves the reference intranet page from ../web/intranet.html so a
         # single `docker compose up` produces a working demo.
-        return send_from_directory(WEB_DIR, "intranet.html")
+        resp = send_from_directory(WEB_DIR, "intranet.html")
+        # The reference page is hot-reloaded during development. Disable
+        # caching so users always get the latest JS without a hard refresh.
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
 
     @app.get("/healthz")
     def _healthz():

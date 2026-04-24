@@ -973,7 +973,13 @@
         state.directLine = window.WebChat.createDirectLine({ token: tokenData.token });
         state.directLine.activity$.subscribe((act) => {
           // Debug: log every DL activity so we can see what the bot returns.
-          try { console.log('[DL activity]', act && act.type, act && act.from && act.from.id, act); } catch (_) {}
+          try {
+            console.log('[DL activity]', act && act.type,
+              'from.id=',   act && act.from && act.from.id,
+              'from.role=', act && act.from && act.from.role,
+              'text=',      act && act.text,
+              act);
+          } catch (_) {}
           // Drop our own echoes. Direct Line replays every activity we post
           // back through activity$ (so apps that DON'T render locally can use
           // it as the source of truth). We render locally on submit, so the
