@@ -31,10 +31,20 @@ docker compose -f bridge/docker-compose.yml up -d --build
 ```
 
 The host script prints a public HTTPS URL like
-`https://abc123-5001.use.devtunnels.ms`. Paste that as the
-`BRIDGE_BASE_URL` value in your ServiceNow outbound Business Rule
-header (`X-Bridge-Secret` plus the `BRIDGE_BASE_URL` env var inside
-ServiceNow).
+`https://abc123-5001.use.devtunnels.ms`. Put that URL in
+`bridge/.env` as `BRIDGE_PUBLIC_URL` and run
+
+```powershell
+.\scripts\sync-bridge-url.ps1
+```
+
+to push it to both ServiceNow (`intranet_bridge.outbound_webhook_url`
+sys_property) and Copilot Studio (the two HTTP-tool botcomponents).
+After it finishes, click **Publish** once in the Copilot Studio maker
+UI so the runtime picks up the new URLs. See
+[`scripts/sync-bridge-url.ps1`](./sync-bridge-url.ps1) for details and
+required env vars (`POWERPLATFORM_ORG_URL`, `POWERPLATFORM_BOT_ID`,
+`POWERPLATFORM_BOT_SCHEMA`, `SN_ADMIN_USER`, `SN_ADMIN_PASSWORD`).
 
 To stop and delete the tunnel when done:
 
