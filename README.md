@@ -60,16 +60,31 @@ and you set it in three places:
 | Copilot Studio Escalate topic HTTP action URL                    | `<BRIDGE_PUBLIC_URL>/api/servicenow/agent/escalate` |
 | The browser (intranet page)                                      | Served from the same origin so relative paths work, **or** updated to use the absolute `<BRIDGE_PUBLIC_URL>`. |
 
-For local development a VS Code Dev Tunnel works fine:
+For local development a VS Code Dev Tunnel works fine. Helper
+scripts are checked in under [`scripts/`](scripts/devtunnel-README.md):
 
 ```powershell
-devtunnel host -p 5000 --allow-anonymous
+# 1. Start the bridge container (publishes container :5000 on host :5001)
+docker compose -f bridge/docker-compose.yml up -d --build
+
+# 2. Create a persistent named tunnel (one-time)
+.\scripts\devtunnel-create.ps1
+
+# 3. Host it (Ctrl+C to stop; the tunnel itself persists)
+.\scripts\devtunnel-host.ps1
 ```
 
-Copy the `https://<id>-5000.use.devtunnels.ms` URL it prints into the
-table above. **Tunnel URLs change when you restart the tunnel** — when
-that happens, update the ServiceNow sys_property and the Copilot Studio
-HTTP action URL.
+Or do it by hand:
+
+```powershell
+devtunnel host --port-numbers 5001 --allow-anonymous
+```
+
+Copy the `https://<id>-5001.use.devtunnels.ms` URL it prints into the
+table above. **Tunnel URLs change when you restart the tunnel** unless
+you used a persistent named tunnel (the helper script does this for
+you) — when they do change, update the ServiceNow sys_property and the
+Copilot Studio HTTP action URL.
 
 For anything beyond local dev, host the bridge on a real platform
 (Azure App Service, Azure Container Apps, Cloud Run, Fly.io, etc.) and
