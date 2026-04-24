@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contoso Connect — Employee Intranet</title>
+  <style>
+    /* ---------------- Page chrome ---------------- */
+    :root {
+      --brand: #0f4c81;
+      --brand-dark: #0a3960;
+      --accent: #ff7a1a;
+      --bg: #f4f6fa;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --bot: #eef2ff;
+      --user: #0f4c81;
+      --rep: #fef3c7;
+      --system: #f3f4f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header.topbar {
+      background: var(--brand);
+      color: white;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    .brand { font-weight: 700; font-size: 20px; letter-spacing: 0.3px; }
+    .topbar nav a {
+      color: rgba(255,255,255,0.92);
+      text-decoration: none;
+      margin-left: 22px;
+      font-size: 14px;
+    }
+    .topbar nav a:hover { color: white; text-decoration: underline; }
+
+    main {
+      max-width: 1200px;
+      margin: 28px auto;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 22px;
+      margin-bottom: 18px;
+    }
+    .card h2 { margin-top: 0; color: var(--brand-dark); font-size: 18px; }
+    .card p { color: var(--muted); line-height: 1.5; font-size: 14px; }
+    .quicklinks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .quicklinks a {
+      display: block; padding: 10px 12px; background: #f9fafb;
+      border: 1px solid var(--border); border-radius: 6px;
+      color: var(--brand-dark); text-decoration: none; font-size: 13px;
+    }
+    .quicklinks a:hover { background: var(--bot); border-color: var(--brand); }
+
+    /* ---------------- Chat widget ---------------- */
+    #chatLauncher {
+      position: fixed; bottom: 24px; right: 24px;
+      width: 60px; height: 60px; border-radius: 50%;
+      background: var(--brand); color: white; border: none;
+      box-shadow: 0 6px 20px rgba(15,76,129,0.35);
+      cursor: pointer; font-size: 24px; z-index: 1000;
+    }
+    #chatPanel {
+      position: fixed; bottom: 24px; right: 24px;
+      width: 380px; height: 560px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 1000;
+    }
+    #chatPanel.open { display: flex; }
+    .chat-header {
+      background: var(--brand);
+      color: white;
+      padding: 12px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .chat-header .title { font-weight: 600; font-size: 15px; }
+    .chat-header .subtitle { font-size: 11px; opacity: 0.85; }
+    .chat-header button {
+      background: transparent; color: white; border: none;
+      font-size: 18px; cursor: pointer;
+    }
+    .chat-status {
+      padding: 8px 14px; font-size: 12px; background: var(--system);
+      border-bottom: 1px solid var(--border); color: var(--muted);
+    }
+    .chat-status.live { background: #ecfdf5; color: #047857; font-weight: 600; }
+    .chat-status.queued { background: #fff7ed; color: #c2410c; }
+    .chat-status.closed { background: #fef2f2; color: #991b1b; }
+    .chat-log {
+      flex: 1; overflow-y: auto; padding: 14px;
+      display: flex; flex-direction: column; gap: 8px;
+      background: #fafbfc;
+    }
+    .msg {
+      max-width: 80%; padding: 8px 12px; border-radius: 12px;
+      font-size: 14px; line-height: 1.35; white-space: pre-wrap; word-wrap: break-word;
+    }
+    .msg .who { display: block; font-size: 10px; opacity: 0.7; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .msg.bot { background: var(--bot); align-self: flex-start; color: var(--text); }
+    .msg.user { background: var(--user); align-self: flex-end; color: white; }
+    .msg.user .who { color: rgba(255,255,255,0.8); }
+    .msg.rep { background: var(--rep); align-self: flex-start; color: #78350f; border: 1px solid #fcd34d; }
+    .msg.system { background: transparent; align-self: center; color: var(--muted); font-size: 11px; font-style: italic; }
+    .chat-input {
+      display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--border); background: white;
+    }
+    .chat-input input {
+      flex: 1; padding: 9px 12px; border: 1px solid var(--border);
+      border-radius: 18px; font-size: 14px; outline: none;
+    }
+    .chat-input input:focus { border-color: var(--brand); }
+    .chat-input button {
+      background: var(--brand); color: white; border: none;
+      padding: 0 18px; border-radius: 18px; cursor: pointer; font-weight: 600;
+    }
+    .chat-input button:disabled { background: #9ca3af; cursor: not-allowed; }
+    .escalate-btn {
+      margin: 8px 14px; padding: 8px;
+      background: white; border: 1px dashed var(--accent); color: var(--accent);
+      border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
+      display: none;  /* Agent decides when to escalate; manual button is a debug fallback only. */
+    }
+    .escalate-btn:hover { background: #fff7ed; }
+    .escalate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">📘 Contoso Connect</div>
+    <nav>
+      <a href="#">Home</a>
+      <a href="#">HR</a>
+      <a href="#">IT Support</a>
+      <a href="#">Benefits</a>
+      <a href="#">Directory</a>
+    </nav>
+  </header>
+
+  <main>
+    <div>
+      <div class="card">
+        <h2>Welcome back</h2>
+        <p>Your one-stop shop for company news, IT help, HR resources, and more. Need a hand? Click the chat icon in the bottom-right to ask our AI assistant — and if you need a real person, you can escalate to an IT support agent right from the chat.</p>
+      </div>
+      <div class="card">
+        <h2>Latest announcements</h2>
+        <p><strong>Q2 all-hands</strong> — Friday at 11:00. Calendar invites are out.</p>
+        <p><strong>VPN maintenance</strong> — Sunday 02:00–04:00 UTC. Brief disconnects expected.</p>
+        <p><strong>New hire onboarding</strong> — Welcome to our 14 newest team members across engineering, sales, and ops.</p>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h2>Quick links</h2>
+        <div class="quicklinks">
+          <a href="#">Submit IT ticket</a>
+          <a href="#">Request time off</a>
+          <a href="#">Org chart</a>
+          <a href="#">Pay & benefits</a>
+          <a href="#">Travel & expenses</a>
+          <a href="#">Learning hub</a>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Need help?</h2>
+        <p>Try the AI assistant first — it can resolve most password resets, software requests, and policy questions instantly. If your issue needs human attention, the assistant can hand you off to a live IT agent in ServiceNow.</p>
+      </div>
+    </div>
+  </main>
+
+  <button id="chatLauncher" aria-label="Open chat">💬</button>
+
+  <div id="chatPanel" role="dialog" aria-label="Support chat">
+    <div class="chat-header">
+      <div>
+        <div class="title" id="chatTitle">IT Support Assistant</div>
+        <div class="subtitle" id="chatSubtitle">AI-powered • Always on</div>
+      </div>
+      <button id="chatClose" aria-label="Close chat">×</button>
+    </div>
+    <div class="chat-status" id="chatStatus">Connected to AI assistant</div>
+    <div class="chat-log" id="chatLog"></div>
+    <button class="escalate-btn" id="escalateBtn">🙋 Talk to a person (ServiceNow)</button>
+    <form class="chat-input" id="chatForm">
+      <input type="text" id="chatInput" placeholder="Type your message..." autocomplete="off" />
+      <button type="submit" id="chatSend">Send</button>
+    </form>
+  </div>
+
+  <script src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
+  <script>
+    // ===== Minimal in-house chat UI driving Direct Line directly =====
+    // We deliberately do NOT use the Web Chat React UI here so the bridge
+    // can swap message routing between the bot and the ServiceNow rep.
+
+    const els = {
+      launcher: document.getElementById('chatLauncher'),
+      panel: document.getElementById('chatPanel'),
+      close: document.getElementById('chatClose'),
+      log: document.getElementById('chatLog'),
+      form: document.getElementById('chatForm'),
+      input: document.getElementById('chatInput'),
+      send: document.getElementById('chatSend'),
+      escalate: document.getElementById('escalateBtn'),
+      status: document.getElementById('chatStatus'),
+      title: document.getElementById('chatTitle'),
+      subtitle: document.getElementById('chatSubtitle'),
+    };
+
+    const state = {
+      mode: 'bot',          // 'bot' | 'queued' | 'live' | 'closed'
+      directLine: null,
+      conversationId: null,
+      bridgeSessionId: null,   // also used as Direct Line user id so the agent can pass it to backend tools
+      ws: null,
+      pollTimer: null,
+      userId: null,            // assigned from bridgeSessionId after init-session
+    };
+
+    function render(msg) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + msg.kind;
+      if (msg.from) {
+        const w = document.createElement('span');
+        w.className = 'who';
+        w.textContent = msg.from;
+        div.appendChild(w);
+      }
+      div.appendChild(document.createTextNode(msg.text));
+      els.log.appendChild(div);
+      els.log.scrollTop = els.log.scrollHeight;
+    }
+
+    function setStatus(text, cls) {
+      els.status.textContent = text;
+      els.status.className = 'chat-status' + (cls ? ' ' + cls : '');
+    }
+
+    function setMode(mode, opts = {}) {
+      state.mode = mode;
+      if (mode === 'bot') {
+        els.title.textContent = 'IT Support Assistant';
+        els.subtitle.textContent = 'AI-powered • Always on';
+        els.escalate.disabled = false;
+        setStatus('Connected to AI assistant', '');
+      } else if (mode === 'queued') {
+        els.title.textContent = 'Connecting to support…';
+        els.subtitle.textContent = opts.interactionNumber ? 'Ticket ' + opts.interactionNumber : 'Please wait';
+        els.escalate.disabled = true;
+        setStatus('Waiting for the next available agent…', 'queued');
+      } else if (mode === 'live') {
+        els.title.textContent = (opts.repName || 'Support agent') + ' (live)';
+        els.subtitle.textContent = opts.interactionNumber ? 'Ticket ' + opts.interactionNumber : 'Live chat';
+        els.escalate.disabled = true;
+        setStatus('Live chat with ' + (opts.repName || 'agent'), 'live');
+      } else if (mode === 'closed') {
+        els.title.textContent = 'Chat ended';
+        els.subtitle.textContent = '';
+        els.escalate.disabled = true;
+        setStatus('This live chat has ended.', 'closed');
+      }
+    }
+
+    // ---------------- Bridge session bootstrap ----------------
+    async function initBridgeSession() {
+      try {
+        const r = await fetch('/api/servicenow/init-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_display_name: 'Intranet User' }),
+        });
+        const data = await r.json();
+        if (!data.session_id) throw new Error('no session_id');
+        state.bridgeSessionId = data.session_id;
+        state.userId = data.session_id;  // same id used as Direct Line user id
+        // Open the rep-reply WebSocket up-front so when the agent calls /agent/escalate
+        // we already have a live channel for the 'rep joined' status push.
+        openWebSocket();
+        // Always start polling too — under gunicorn gthread the WS may open but
+        // never deliver server-pushed events, so polling is the reliable path
+        // for detecting agent-initiated state transitions (escalate via tool).
+        startPolling();
+        return true;
+      } catch (e) {
+        render({ kind: 'system', text: 'Could not initialise support session: ' + e.message });
+        return false;
+      }
+    }
+
+    // ---------------- Direct Line / bot ----------------
+    async function startDirectLine() {
+      try {
+        const r = await fetch('/directline/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: state.userId || '' }),
+        });
+        const tokenData = await r.json();
+        if (!tokenData.token) {
+          render({ kind: 'system', text: 'Could not start chat (Direct Line token unavailable).' });
+          return;
+        }
+        state.directLine = window.WebChat.createDirectLine({ token: tokenData.token });
+        state.directLine.activity$.subscribe((act) => {
+          if (act.from && act.from.id === state.userId) return;
+
+          // Copilot Studio raises this event when a topic invokes
+          // TransferConversationV2 (system Escalate or any custom topic with
+          // generic handoff configured). Per
+          // https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-hand-off
+          // the activity has type='event', name='handoff.initiate', and
+          // value carries the va_* context (last topic, phrases, etc.).
+          if (act.type === 'event' && act.name === 'handoff.initiate') {
+            if (state.mode !== 'bot') return; // already handed off
+            const ctx = act.value || {};
+            const opening = ctx.va_AgentMessage || ctx.va_LastPhrases || ctx.va_LastTopic || '';
+            console.log('[handoff] handoff.initiate received', { ctx });
+            // Reuse the existing /api/servicenow/escalate route which already
+            // creates the SN interaction, transitions the bridge to QUEUED,
+            // and pushes status updates over the WS we opened in initBridgeSession.
+            escalate(typeof opening === 'string' ? opening : JSON.stringify(opening));
+            return;
+          }
+
+          if (act.type !== 'message') return;
+          if (state.mode !== 'bot') return; // ignore stale bot messages once we've handed off
+          if (act.text) render({ kind: 'bot', from: 'Assistant', text: act.text });
+        });
+        state.directLine.connectionStatus$.subscribe(() => {
+          if (state.directLine.conversationId) state.conversationId = state.directLine.conversationId;
+        });
+      } catch (e) {
+        render({ kind: 'system', text: 'Chat startup error: ' + e.message });
+      }
+    }
+
+    function sendToBot(text) {
+      if (!state.directLine) return;
+      state.directLine
+        .postActivity({
+          from: { id: state.userId },
+          type: 'message',
+          text,
+          channelData: { bridgeSessionId: state.bridgeSessionId },
+        })
+        .subscribe(() => {}, (e) => render({ kind: 'system', text: 'Bot send failed: ' + e.message }));
+    }
+
+    // ---------------- ServiceNow escalation ----------------
+    async function escalate(openingMessage) {
+      try {
+        setMode('queued');
+        render({ kind: 'system', text: 'Escalating to a live IT agent…' });
+        const r = await fetch('/api/servicenow/escalate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            opening_message: openingMessage || '',
+            user_display_name: 'Intranet User',
+          }),
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          render({ kind: 'system', text: 'Escalation failed: ' + (data.detail || data.error) });
+          setMode('bot');
+          return;
+        }
+        state.bridgeSessionId = data.session_id;
+        setMode('queued', { interactionNumber: data.interaction_number });
+        render({ kind: 'system', text: 'Ticket ' + data.interaction_number + ' created. An agent will join shortly.' });
+        openWebSocket();
+      } catch (e) {
+        render({ kind: 'system', text: 'Escalation error: ' + e.message });
+        setMode('bot');
+      }
+    }
+
+    async function sendToRep(text) {
+      try {
+        const r = await fetch('/api/servicenow/user-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: state.bridgeSessionId, text }),
+        });
+        if (!r.ok) {
+          const data = await r.json().catch(() => ({}));
+          render({ kind: 'system', text: 'Could not deliver to agent: ' + (data.error || r.status) });
+        }
+      } catch (e) {
+        render({ kind: 'system', text: 'Send to agent failed: ' + e.message });
+      }
+    }
+
+    function openWebSocket() {
+      if (!state.bridgeSessionId) return;
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const url = proto + '//' + location.host + '/ws/intranet/' + state.bridgeSessionId;
+      try {
+        state.ws = new WebSocket(url);
+      } catch (e) {
+        render({ kind: 'system', text: 'WebSocket unavailable; falling back to polling.' });
+        startPolling();
+        return;
+      }
+      state.ws.onmessage = (evt) => {
+        try { handleBridgeEvent(JSON.parse(evt.data)); } catch (_) {}
+      };
+      state.ws.onclose = () => {
+        // If the chat isn't closed yet, try polling as a fallback.
+        if (state.mode !== 'closed') startPolling();
+      };
+      state.ws.onerror = () => {
+        startPolling();
+      };
+    }
+
+    function startPolling() {
+      if (state.pollTimer || !state.bridgeSessionId) return;
+      state.pollTimer = setInterval(async () => {
+        try {
+          const r = await fetch('/api/servicenow/poll/' + state.bridgeSessionId);
+          if (!r.ok) return;
+          const data = await r.json();
+          (data.events || []).forEach(handleBridgeEvent);
+          // Detect agent-driven state transitions (escalate via tool) when the
+          // WS hasn't delivered a 'status' event (e.g. gunicorn worker mismatch).
+          if (data.state && data.state !== state.mode) {
+            if (data.state === 'queued' && state.mode === 'bot') {
+              // Stay in the same chat panel; show queued status until rep joins.
+              setMode('queued', { interactionNumber: data.interaction_number });
+              render({ kind: 'system', text: 'Connecting you to a live IT agent…' });
+            } else if (data.state === 'live' && state.mode !== 'live') {
+              setMode('live', { repName: data.rep_name, interactionNumber: data.interaction_number });
+              render({ kind: 'system', text: (data.rep_name || 'Agent') + ' joined the chat.' });
+            } else if (data.state === 'closed') {
+              setMode('closed');
+              render({ kind: 'system', text: 'This chat has ended.' });
+            }
+          }
+          if (data.state === 'closed') {
+            clearInterval(state.pollTimer);
+            state.pollTimer = null;
+          }
+        } catch (_) {}
+      }, 3000);
+    }
+
+    function handleBridgeEvent(evt) {
+      if (evt.type === 'status') {
+        if (evt.state === 'queued') {
+          setMode('queued', { interactionNumber: evt.interaction_number });
+          return;
+        }
+        if (evt.state === 'live') {
+          setMode('live', { repName: evt.rep_name });
+          render({ kind: 'system', text: (evt.rep_name || 'Agent') + ' joined the chat.' });
+        } else if (evt.state === 'closed') {
+          setMode('closed');
+          render({ kind: 'system', text: 'Agent ended the chat.' });
+          if (state.ws) try { state.ws.close(); } catch (_) {}
+        }
+      } else if (evt.type === 'message' && evt.from === 'rep') {
+        render({ kind: 'rep', from: evt.rep_name || 'Agent', text: evt.text });
+      } else if (evt.type === 'error') {
+        // Don't surface transient bridge errors in the UI; fall back to polling.
+        console.warn('bridge ws error:', evt.error);
+        if (state.ws) try { state.ws.close(); } catch (_) {}
+        startPolling();
+      }
+    }
+
+    // ---------------- Wire UI ----------------
+    els.launcher.addEventListener('click', () => {
+      els.panel.classList.add('open');
+      els.launcher.style.display = 'none';
+      els.input.focus();
+    });
+    els.close.addEventListener('click', () => {
+      els.panel.classList.remove('open');
+      els.launcher.style.display = '';
+    });
+
+    els.escalate.addEventListener('click', () => {
+      const lastUserMsg = Array.from(els.log.querySelectorAll('.msg.user')).pop();
+      const opening = lastUserMsg ? lastUserMsg.textContent.replace(/^YOU/i, '').trim() : '';
+      escalate(opening);
+    });
+
+    els.form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = els.input.value.trim();
+      if (!text) return;
+      els.input.value = '';
+      render({ kind: 'user', from: 'You', text });
+      if (state.mode === 'bot') {
+        sendToBot(text);
+      } else if (state.mode === 'live') {
+        sendToRep(text);
+      } else if (state.mode === 'queued') {
+        // Queue locally; will be flushed when LIVE. For simplicity send anyway —
+        // it lands as work_notes on the interaction so the rep sees it on claim.
+        sendToRep(text);
+      }
+    });
+
+    // Render an opening message and start the bot connection on first open.
+    let started = false;
+    els.launcher.addEventListener('click', async () => {
+      if (started) return;
+      started = true;
+      render({ kind: 'bot', from: 'Assistant', text: 'Hi! I can help with IT questions. Tell me what you need help with — I can answer common questions, log a ticket for you, or connect you with a live IT specialist if needed.' });
+      const ok = await initBridgeSession();
+      if (ok) startDirectLine();
+    });
+  </script>
+</body>
+</html>
