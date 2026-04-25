@@ -30,9 +30,13 @@ updates instantly.
 | [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)       | Symptom → cause → fix table built from the dead ends.        |
 | [`docs/08-api-reference.md`](docs/08-api-reference.md)           | Every ServiceNow API and table touched, with rationale.      |
 | [`docs/09-production-hardening.md`](docs/09-production-hardening.md) | Checklist before promoting beyond a dev PDI.             |
+| [`docs/10-teams-channel-overview.md`](docs/10-teams-channel-overview.md) | Microsoft Teams channel architecture and design.    |
+| [`docs/11-teams-bot-setup.md`](docs/11-teams-bot-setup.md)       | Provisioning the Azure Bot, AAD app, and Teams manifest.     |
+| [`docs/12-teams-end-to-end-test.md`](docs/12-teams-end-to-end-test.md) | Sideload and validate the Teams relay end-to-end.       |
 | `servicenow/`                                   | Three Scripted REST scripts to paste into ServiceNow.        |
 | `bridge/`                                       | Reference Flask bridge (`servicenow_bridge.py`).             |
 | `web/`                                          | Reference HTML page with the bot ↔ live agent state machine. |
+| `teams_bot/`                                    | Bot Framework relay that mirrors the web flow into Microsoft Teams. |
 
 ## Quick start
 

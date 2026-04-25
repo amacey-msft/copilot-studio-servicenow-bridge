@@ -7,6 +7,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Microsoft Teams channel** as a first-class second front-end alongside
+  the browser webchat. A new `teams_bot/` package adds a Bot Framework
+  relay that proxies Teams 1:1 chats to the same Copilot Studio agent
+  and ServiceNow live-chat handoff used by the web UI:
+  - `teams_bot/runtime.py` -- `CloudAdapter` singleton with sync wrappers
+    around `process_activity` / `continue_conversation` so Flask routes
+    can drive an async botbuilder pipeline.
+  - `teams_bot/relay.py` -- `TeamsRelayBot` state machine
+    (BOT / QUEUED / LIVE / CLOSED) mirroring the web flow, including
+    Adaptive Cards for status changes, typing indicators, and a
+    universal `new` / `reset` / `start over` escape command from any
+    state.
+  - `teams_bot/directline.py` -- per-session Direct Line client to
+    Copilot Studio. Always starts the conversation explicitly so we
+    capture the regional DL gateway from `streamUrl` (CS tokens are
+    bound to e.g. `unitedstates.directline.botframework.com`, not the
+    global host). Filters bot replies by the activity IDs we posted so
+    DL's `from.id` rewrite doesn't leak the user's own messages back.
+  - `teams_bot/push.py` -- proactive push of rep replies / status /
+    typing into the Teams chat via `continue_conversation`.
+  - `teams_bot/blueprint.py` -- Flask blueprint exposing
+    `/api/messages` for the Bot Framework channel.
+  - `teams_bot/manifest/` -- v1.16 Teams app manifest, build script
+    (`build.ps1`), and placeholder icon generator
+    (`make-placeholder-icons.ps1`).
+- `bridge/servicenow_bridge.py` channel-aware `BridgeSession`:
+  `channel`, `teams_user_key`, `teams_conversation_reference`,
+  and a `_push_to_user` dispatcher that routes outbound events to
+  the right front-end (WebSocket for web, `continue_conversation` for
+  Teams).
+- `/api/teams/init-session` and `/api/teams/reset-session` Flask routes
+  for the Teams relay's idempotent per-AAD-user session lookup.
+- `TEAMS_SESSION_IDLE_TIMEOUT_S` env var (default 3600s) plus
+  `last_activity_at` on `BridgeSession`. The Teams init route auto-recycles
+  any non-BOT session that is `closed` or has been idle past the timeout
+  so a user who escalated days ago isn't stuck talking to a long-dead
+  live chat.
+- Docs: `docs/10-teams-channel-overview.md`,
+  `docs/11-teams-bot-setup.md`, `docs/12-teams-end-to-end-test.md`.
+
+### Added
 - `BRIDGE_PUBLIC_URL` env var (in `bridge/.env`) is now the single source
   of truth for the bridge's public HTTPS URL. `scripts/sync-bridge-url.ps1`
   reads it and patches the ServiceNow `sys_property` and the Copilot Studio
