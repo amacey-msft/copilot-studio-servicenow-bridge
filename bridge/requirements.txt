@@ -2,3 +2,9 @@ flask>=3.0,<4
 flask-sock>=0.7,<1
 requests>=2.31,<3
 gunicorn>=22,<24
+
+# Teams relay bot (teams_bot/). Pinned to the 4.16.x family which exposes
+# CloudAdapter + ConfigurationBotFrameworkAuthentication + TeamsActivityHandler.
+botbuilder-core>=4.16,<5
+botbuilder-schema>=4.16,<5
+botframework-connector>=4.16,<5

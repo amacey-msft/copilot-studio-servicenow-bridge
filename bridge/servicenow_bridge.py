@@ -84,12 +84,25 @@ class BridgeSession:
     # fires on every insert (including ours), so the webhook can re-deliver
     # the user's own text as a rep message. We drop the matching echo.
     recent_user_texts: deque = field(default_factory=lambda: deque(maxlen=20))
+    # ----- Teams channel additions (see ../teams_bot/) -----
+    # "web" (browser webchat, default) | "teams" (Bot Framework relay)
+    channel: str = "web"
+    # Stable per-Teams-user key (AAD object id) used to look up an existing
+    # session on subsequent turns so we don't allocate a new sid per message.
+    teams_user_key: str | None = None
+    # Serialized BotFramework ConversationReference for proactive push via
+    # adapter.continue_conversation. Stored as a plain dict so the bridge
+    # itself stays free of botbuilder imports (lazy import in the push hook).
+    teams_conversation_reference: dict | None = None
 
 
 _sessions: dict[str, BridgeSession] = {}
 _sessions_lock = threading.Lock()
 # Reverse index for webhook lookups by interaction sys_id
 _by_interaction: dict[str, str] = {}
+# Reverse index for Teams: AAD user key -> bridge sid (so each Teams user
+# keeps a stable sid across turns / app restarts of the Teams client).
+_by_teams_user: dict[str, str] = {}
 
 
 def _get_session(sid: str) -> BridgeSession | None:
@@ -103,6 +116,41 @@ def _new_session(user_email: str | None, user_display_name: str | None) -> Bridg
     with _sessions_lock:
         _sessions[sid] = s
     return s
+
+
+def _email_to_sn_user_sys_id(email: str | None) -> str | None:
+    """Resolve an AAD email/upn to a sys_user.sys_id via the SN Table API.
+    Returns None on no-match so the caller can fall back to SN_DEFAULT_USER_SYS_ID.
+    Result is cached per-process; the dev cache is fine for the demo scope."""
+    if not email:
+        return None
+    cached = _sn_user_cache.get(email.lower())
+    if cached is not None:
+        return cached or None
+    if not (SN_INSTANCE and SN_USER and SN_PASSWORD):
+        return None
+    try:
+        r = requests.get(
+            _sn_url("/api/now/table/sys_user"),
+            params={
+                "sysparm_query": f"email={email}^ORuser_name={email}",
+                "sysparm_fields": "sys_id,email,user_name",
+                "sysparm_limit": "1",
+            },
+            auth=_sn_auth(),
+            headers={"Accept": "application/json"},
+            timeout=SN_REQUEST_TIMEOUT,
+        )
+        r.raise_for_status()
+        rows = (r.json() or {}).get("result") or []
+        sys_id = rows[0].get("sys_id") if rows else None
+    except Exception:  # noqa: BLE001
+        sys_id = None
+    _sn_user_cache[email.lower()] = sys_id or ""
+    return sys_id
+
+
+_sn_user_cache: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +272,24 @@ def _push_to_browser(session: BridgeSession, payload: dict) -> None:
             session.pending.append(payload)
 
 
+def _push_to_user(session: BridgeSession, payload: dict) -> None:
+    """Channel-aware dispatcher. Web sessions go to the WS/poll buffer; Teams
+    sessions are pushed via the Bot Framework adapter's continue_conversation."""
+    if session.channel == "teams":
+        # Always also buffer in pending so a future /poll endpoint or debug
+        # tool can inspect what was sent. Cheap insurance and matches web shape.
+        with session.lock:
+            session.pending.append(payload)
+        try:
+            from teams_bot.push import push as _teams_push
+        except Exception:  # noqa: BLE001
+            current_app.logger.exception("[push] teams_bot import failed")
+            return
+        _teams_push(session.teams_conversation_reference, payload)
+        return
+    _push_to_browser(session, payload)
+
+
 # ---------------------------------------------------------------------------
 # Flask blueprint
 # ---------------------------------------------------------------------------
@@ -244,7 +310,7 @@ def _escalate_session(s: BridgeSession, opening_message: str) -> dict:
     s.state = STATE_QUEUED
     with _sessions_lock:
         _by_interaction[s.interaction_sys_id] = s.sid
-    _push_to_browser(
+    _push_to_user(
         s,
         {
             "type": "status",
@@ -267,6 +333,81 @@ def init_session():
         user_display_name=(data.get("user_display_name") or "").strip() or None,
     )
     return jsonify({"session_id": s.sid, "state": s.state})
+
+
+@bp.route("/api/teams/init-session", methods=["POST"])
+def init_session_teams():
+    """Idempotent per-Teams-user session lookup/create.
+
+    Called by the relay bot (teams_bot/) on every turn. The first call for a
+    given `teams_user_key` allocates a new BridgeSession (channel="teams")
+    and resolves the AAD email to a sys_user.sys_id; later calls return the
+    same sid (so escalations and webhooks continue to find the right session).
+
+    Always refreshes the stored ConversationReference because Teams may rotate
+    serviceUrl, conversation ids, etc. across app upgrades or device switches.
+    """
+    data = request.get_json(silent=True) or {}
+    teams_user_key = (data.get("teams_user_key") or "").strip()
+    if not teams_user_key:
+        return jsonify({"error": "teams_user_key required"}), 400
+
+    user_email = (data.get("user_email") or "").strip() or None
+    user_display_name = (data.get("user_display_name") or "").strip() or None
+    conversation_reference = data.get("conversation_reference") or None
+
+    with _sessions_lock:
+        existing_sid = _by_teams_user.get(teams_user_key)
+    s = _get_session(existing_sid) if existing_sid else None
+    if s is None:
+        s = _new_session(user_email=user_email, user_display_name=user_display_name)
+        s.channel = "teams"
+        s.teams_user_key = teams_user_key
+        s.sn_user_sys_id = (
+            _email_to_sn_user_sys_id(user_email) or SN_DEFAULT_USER_SYS_ID
+        )
+        with _sessions_lock:
+            _by_teams_user[teams_user_key] = s.sid
+    else:
+        # Refresh display name / email if the bot now has a better value.
+        if user_display_name and not s.user_display_name:
+            s.user_display_name = user_display_name
+        if user_email and not s.user_email:
+            s.user_email = user_email
+            resolved = _email_to_sn_user_sys_id(user_email)
+            if resolved:
+                s.sn_user_sys_id = resolved
+
+    if conversation_reference:
+        s.teams_conversation_reference = conversation_reference
+
+    return jsonify(
+        {
+            "session_id": s.sid,
+            "state": s.state,
+            "rep_name": s.rep_name,
+            "interaction_number": s.interaction_number,
+        }
+    )
+
+
+@bp.route("/api/teams/reset-session", methods=["POST"])
+def reset_session_teams():
+    """Drop a Teams user's session so the next turn allocates a fresh one.
+
+    The relay bot calls this when the user types "new" after a closed chat.
+    """
+    data = request.get_json(silent=True) or {}
+    teams_user_key = (data.get("teams_user_key") or "").strip()
+    if not teams_user_key:
+        return jsonify({"error": "teams_user_key required"}), 400
+    with _sessions_lock:
+        sid = _by_teams_user.pop(teams_user_key, None)
+        if sid:
+            s = _sessions.pop(sid, None)
+            if s and s.interaction_sys_id:
+                _by_interaction.pop(s.interaction_sys_id, None)
+    return jsonify({"ok": True})
 
 
 @bp.route("/api/servicenow/agent/create-ticket", methods=["POST"])
@@ -440,17 +581,22 @@ def webhook():
     if event == "claimed":
         s.state = STATE_LIVE
         s.rep_name = rep_name or "Support Agent"
-        _push_to_browser(s, {"type": "status", "state": s.state, "rep_name": s.rep_name})
+        _push_to_user(s, {"type": "status", "state": s.state, "rep_name": s.rep_name})
     elif event == "closed":
         s.state = STATE_CLOSED
-        _push_to_browser(s, {"type": "status", "state": s.state})
+        _push_to_user(s, {"type": "status", "state": s.state})
+    elif event == "typing":
+        # Rep is typing in SN; surface as a transient indicator on the user
+        # side. Web ignores by default (no-op in browser dispatcher); Teams
+        # renders an Activity(type="typing"). See teams_bot/push.py.
+        _push_to_user(s, {"type": "typing", "rep_name": s.rep_name})
     else:
         # First reply implicitly transitions to LIVE if not already
         if s.state == STATE_QUEUED:
             s.state = STATE_LIVE
             if rep_name:
                 s.rep_name = rep_name
-            _push_to_browser(s, {"type": "status", "state": s.state, "rep_name": s.rep_name})
+            _push_to_user(s, {"type": "status", "state": s.state, "rep_name": s.rep_name})
         if text:
             # Drop our own echo: SN's BR fires on every sys_cs_message insert,
             # including the consumer-direction inserts we just made on behalf
@@ -467,7 +613,7 @@ def webhook():
                     "[webhook] dropping user-text echo for session=%s text=%r", s.sid, norm[:80]
                 )
             else:
-                _push_to_browser(
+                _push_to_user(
                     s,
                     {"type": "message", "from": "rep", "rep_name": s.rep_name, "text": text},
                 )

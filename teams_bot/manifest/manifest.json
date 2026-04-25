@@ -1,0 +1,38 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "0.1.0",
+  "id": "REPLACE-WITH-A-FRESH-GUID",
+  "packageName": "com.example.copilot.servicenow.relay",
+  "developer": {
+    "name": "Copilot Studio + ServiceNow Bridge (reference)",
+    "websiteUrl": "https://example.com",
+    "privacyUrl": "https://example.com/privacy",
+    "termsOfUseUrl": "https://example.com/terms"
+  },
+  "icons": {
+    "color": "icon-color.png",
+    "outline": "icon-outline.png"
+  },
+  "name": {
+    "short": "IT Helper",
+    "full": "IT Helper (Copilot Studio + ServiceNow)"
+  },
+  "description": {
+    "short": "Ask IT, escalate to a live agent without leaving Teams.",
+    "full": "Reference Teams app for the Copilot Studio + ServiceNow live-agent bridge. Self-service via Copilot Studio; transparent handoff to a live ServiceNow agent in the same chat."
+  },
+  "accentColor": "#0078D4",
+  "bots": [
+    {
+      "botId": "REPLACE-WITH-MS_APP_ID",
+      "scopes": ["personal"],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": [
+    "REPLACE-WITH-BRIDGE-PUBLIC-HOST.example.com"
+  ]
+}
