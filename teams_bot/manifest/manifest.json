@@ -1,0 +1,35 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "a7c1f3d8-9b2e-4d6c-8f1a-2e4b6d8c0a1f",
+  "packageName": "com.copilotstudio.servicenow.relay",
+  "developer": {
+    "name": "CPS-SN Bridge Reference",
+    "websiteUrl": "https://REPLACE-WITH-BRIDGE-PUBLIC-HOST.example.com",
+    "privacyUrl": "https://REPLACE-WITH-BRIDGE-PUBLIC-HOST.example.com/privacy",
+    "termsOfUseUrl": "https://REPLACE-WITH-BRIDGE-PUBLIC-HOST.example.com/terms"
+  },
+  "icons": {
+    "color": "icon-color.png",
+    "outline": "icon-outline.png"
+  },
+  "name": {
+    "short": "IT Helper",
+    "full": "IT Helper Bot"
+  },
+  "description": {
+    "short": "Ask IT, escalate to a live agent.",
+    "full": "Reference relay bot that fronts a Copilot Studio agent and hands off to a ServiceNow live agent in the same chat."
+  },
+  "accentColor": "#0078D4",
+  "bots": [
+    {
+      "botId": "REPLACE-WITH-MS_APP_ID",
+      "scopes": ["personal"],
+      "isNotificationOnly": false,
+      "supportsFiles": false
+    }
+  ],
+  "validDomains": []
+}
