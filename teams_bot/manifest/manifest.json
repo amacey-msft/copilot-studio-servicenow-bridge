@@ -1,14 +1,14 @@
 {
-  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
-  "manifestVersion": "1.17",
-  "version": "0.1.0",
-  "id": "REPLACE-WITH-A-FRESH-GUID",
-  "packageName": "com.example.copilot.servicenow.relay",
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "a7c1f3d8-9b2e-4d6c-8f1a-2e4b6d8c0a1f",
+  "packageName": "com.copilotstudio.servicenow.relay",
   "developer": {
-    "name": "Copilot Studio + ServiceNow Bridge (reference)",
-    "websiteUrl": "https://example.com",
-    "privacyUrl": "https://example.com/privacy",
-    "termsOfUseUrl": "https://example.com/terms"
+    "name": "CPS-SN Bridge Reference",
+    "websiteUrl": "https://REPLACE-WITH-BRIDGE-PUBLIC-HOST.example.com",
+    "privacyUrl": "https://REPLACE-WITH-BRIDGE-PUBLIC-HOST.example.com/privacy",
+    "termsOfUseUrl": "https://REPLACE-WITH-BRIDGE-PUBLIC-HOST.example.com/terms"
   },
   "icons": {
     "color": "icon-color.png",
@@ -16,23 +16,20 @@
   },
   "name": {
     "short": "IT Helper",
-    "full": "IT Helper (Copilot Studio + ServiceNow)"
+    "full": "IT Helper Bot"
   },
   "description": {
-    "short": "Ask IT, escalate to a live agent without leaving Teams.",
-    "full": "Reference Teams app for the Copilot Studio + ServiceNow live-agent bridge. Self-service via Copilot Studio; transparent handoff to a live ServiceNow agent in the same chat."
+    "short": "Ask IT, escalate to a live agent.",
+    "full": "Reference relay bot that fronts a Copilot Studio agent and hands off to a ServiceNow live agent in the same chat."
   },
   "accentColor": "#0078D4",
   "bots": [
     {
       "botId": "REPLACE-WITH-MS_APP_ID",
       "scopes": ["personal"],
-      "supportsFiles": false,
-      "isNotificationOnly": false
+      "isNotificationOnly": false,
+      "supportsFiles": false
     }
   ],
-  "permissions": ["identity", "messageTeamMembers"],
-  "validDomains": [
-    "REPLACE-WITH-BRIDGE-PUBLIC-HOST.example.com"
-  ]
+  "validDomains": []
 }

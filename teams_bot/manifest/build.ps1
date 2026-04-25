@@ -32,11 +32,22 @@ New-Item -ItemType Directory -Force -Path $staging | Out-Null
 if (-not $AppId) { $AppId = [guid]::NewGuid().ToString() }
 
 $json = Get-Content -Raw -Path $src
-$json = $json -replace 'REPLACE-WITH-A-FRESH-GUID', $AppId
+# Only substitute the id placeholder if the manifest still has it. Once a
+# real GUID is committed to manifest.json (recommended), keep it stable so
+# repeated installs upgrade the same app rather than register a new one.
+if ($json -match 'REPLACE-WITH-A-FRESH-GUID') {
+    $json = $json -replace 'REPLACE-WITH-A-FRESH-GUID', $AppId
+}
 $json = $json -replace 'REPLACE-WITH-MS_APP_ID', $BotId
 $json = $json -replace 'REPLACE-WITH-BRIDGE-PUBLIC-HOST\.example\.com', $BridgeHost
 
 Set-Content -Path (Join-Path $staging 'manifest.json') -Value $json -Encoding UTF8
+
+# PowerShell 5.1's Set-Content -Encoding UTF8 prepends a BOM, which Teams
+# rejects with a generic "Manifest parsing error message unavailable".
+# Rewrite without BOM via raw .NET.
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText((Join-Path $staging 'manifest.json'), $json, $utf8NoBom)
 
 # Copy icons (placeholders or real artwork).
 foreach ($name in 'icon-color.png','icon-outline.png') {

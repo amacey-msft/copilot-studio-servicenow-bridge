@@ -8,3 +8,8 @@ gunicorn>=22,<24
 botbuilder-core>=4.16,<5
 botbuilder-schema>=4.16,<5
 botframework-connector>=4.16,<5
+# CloudAdapter concrete impl lives here in v4.17 (we don't use the aiohttp
+# web server, just adapter.process_activity / continue_conversation).
+botbuilder-integration-aiohttp>=4.16,<5
+# Required by botframework-connector's async transport (msrest.aiohttp).
+aiohttp>=3.9,<4

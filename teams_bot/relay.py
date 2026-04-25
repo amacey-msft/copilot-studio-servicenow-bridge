@@ -123,18 +123,24 @@ class TeamsRelayBot(TeamsActivityHandler):
         sid = session.get("session_id")
         state = session.get("state") or "bot"
 
+        # Universal escape hatch: let the user bail out of any state (queued
+        # waiting for an agent, an old live chat that the rep has long since
+        # left, or a closed session) by typing a reset command. Without this
+        # a user who escalated days ago is stuck talking to a dead live-chat.
+        RESET_COMMANDS = {"new", "new chat", "start new chat", "reset", "start over", "restart"}
+        if text.lower() in RESET_COMMANDS:
+            self._bridge_post(
+                "/api/teams/reset-session",
+                {"teams_user_key": self._channel_user_key(turn_context)},
+            )
+            directline.reset(sid or "")
+            await turn_context.send_activity(
+                "Started a new chat. How can I help?"
+            )
+            return
+
         # Allow simple "reset" command from CLOSED to start over.
         if state == "closed":
-            if text.lower() in {"new", "new chat", "start new chat", "reset"}:
-                self._bridge_post(
-                    "/api/teams/reset-session",
-                    {"teams_user_key": self._channel_user_key(turn_context)},
-                )
-                directline.reset(sid or "")
-                await turn_context.send_activity(
-                    "Started a new chat. How can I help?"
-                )
-                return
             await turn_context.send_activity(
                 "This chat has ended. Type **new** to start over."
             )
@@ -142,7 +148,8 @@ class TeamsRelayBot(TeamsActivityHandler):
 
         if state == "queued":
             await turn_context.send_activity(
-                "Connecting an agent... please hold. I'll let you know as soon as someone joins."
+                "Connecting an agent... please hold. I'll let you know as soon "
+                "as someone joins. Type **new** to cancel and start over."
             )
             return
 

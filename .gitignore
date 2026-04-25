@@ -25,3 +25,6 @@ app_logs/
 *.local.*
 *_secret*
 secret_*
+
+# Teams manifest build output
+teams_bot/manifest/dist/

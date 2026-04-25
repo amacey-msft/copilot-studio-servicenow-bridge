@@ -20,10 +20,10 @@ import threading
 from concurrent.futures import Future
 from typing import Any, Awaitable, Callable
 
-from botbuilder.core import (
+from botbuilder.core import TurnContext
+from botbuilder.integration.aiohttp import (
     CloudAdapter,
     ConfigurationBotFrameworkAuthentication,
-    TurnContext,
 )
 from botbuilder.schema import Activity, ConversationReference
 
@@ -72,25 +72,24 @@ def run_async(coro: Awaitable[Any], timeout: float | None = 30.0) -> Any:
 
 class _BotFrameworkConfig:
     """Minimal config object the way ConfigurationBotFrameworkAuthentication
-    expects -- it calls `get('MicrosoftAppId')` etc. on whatever is passed in."""
+    and ConfigurationServiceClientCredentialFactory expect.
+
+    The credential factory uses `hasattr(cfg, 'APP_ID')` + `cfg.APP_ID` and
+    expects `APP_TYPE` to be one of `"MultiTenant"`, `"SingleTenant"`,
+    `"UserAssignedMsi"`. The auth class additionally pulls a few optional
+    keys via `getattr(cfg, 'CHANNEL_SERVICE', None)` etc. — we expose
+    everything as plain attributes plus a `get()` for forward compat.
+    """
 
     def __init__(self) -> None:
-        self._values = {
-            "MicrosoftAppId": config.MS_APP_ID,
-            "MicrosoftAppPassword": config.MS_APP_PASSWORD,
-            "MicrosoftAppType": config.MS_APP_TYPE,
-            "MicrosoftAppTenantId": config.MS_APP_TENANT_ID,
-        }
+        # Keys the credential factory cares about (attribute access).
+        self.APP_TYPE = config.MS_APP_TYPE or "MultiTenant"
+        self.APP_ID = config.MS_APP_ID or ""
+        self.APP_PASSWORD = config.MS_APP_PASSWORD or ""
+        self.APP_TENANTID = config.MS_APP_TENANT_ID or ""
 
     def get(self, key: str, default: Any = None) -> Any:
-        return self._values.get(key, default)
-
-    # Some SDK versions also call attribute access.
-    def __getattr__(self, item: str) -> Any:
-        try:
-            return self._values[item]
-        except KeyError as exc:
-            raise AttributeError(item) from exc
+        return getattr(self, key, default)
 
 
 _adapter: CloudAdapter | None = None

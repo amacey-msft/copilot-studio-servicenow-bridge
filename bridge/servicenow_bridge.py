@@ -53,6 +53,14 @@ SN_DEFAULT_USER_SYS_ID = os.environ.get("SN_DEFAULT_USER_SYS_ID") or "e23081fb3b
 SN_DEFAULT_QUEUE_SYS_ID = os.environ.get("SN_DEFAULT_QUEUE_SYS_ID") or "3787b03b3b180310e4058e0f23e45ad0"  # IT Help Chat
 SN_DEFAULT_CHANNEL_SYS_ID = os.environ.get("SN_DEFAULT_CHANNEL_SYS_ID") or "27f675e3739713004a905ee515f6a7c3"  # Chat
 
+# How long a Teams session in queued / live / closed state may sit idle
+# before the next user turn auto-recycles it back to a fresh BOT session.
+# Without this, a user who escalated a week ago is stuck talking to a
+# long-dead live-chat that the CSR has long since left.
+TEAMS_SESSION_IDLE_TIMEOUT_S = float(
+    os.environ.get("TEAMS_SESSION_IDLE_TIMEOUT_S", "3600")
+)
+
 
 # ---------------------------------------------------------------------------
 # Session state
@@ -76,6 +84,9 @@ class BridgeSession:
     user_display_name: str | None = None
     rep_name: str | None = None
     created_at: float = field(default_factory=time.time)
+    # Updated whenever the user sends a turn (Teams or web) so we can detect
+    # stale sessions and auto-recycle them.
+    last_activity_at: float = field(default_factory=time.time)
     # Buffered rep messages for clients that poll instead of using WS.
     pending: deque = field(default_factory=deque)
     websocket: Any = None  # flask_sock Server, set when client connects
@@ -359,6 +370,26 @@ def init_session_teams():
     with _sessions_lock:
         existing_sid = _by_teams_user.get(teams_user_key)
     s = _get_session(existing_sid) if existing_sid else None
+
+    # Auto-recycle a stale non-BOT session: if the user comes back days /
+    # weeks after escalating, the live-chat is long dead and forwarding more
+    # messages into it just produces silence. Treat the next turn as a fresh
+    # bot conversation. The old BridgeSession is dropped from the in-memory
+    # store; the SN-side records (interaction etc.) remain in SN as history.
+    if s is not None and s.state != STATE_BOT:
+        idle_for = time.time() - (s.last_activity_at or s.created_at)
+        if s.state == STATE_CLOSED or idle_for > TEAMS_SESSION_IDLE_TIMEOUT_S:
+            current_app.logger.info(
+                "[teams] recycling stale session sid=%s state=%s idle_s=%.0f",
+                s.sid, s.state, idle_for,
+            )
+            with _sessions_lock:
+                _by_teams_user.pop(teams_user_key, None)
+                _sessions.pop(s.sid, None)
+                if s.interaction_sys_id:
+                    _by_interaction.pop(s.interaction_sys_id, None)
+            s = None
+
     if s is None:
         s = _new_session(user_email=user_email, user_display_name=user_display_name)
         s.channel = "teams"
@@ -377,6 +408,8 @@ def init_session_teams():
             resolved = _email_to_sn_user_sys_id(user_email)
             if resolved:
                 s.sn_user_sys_id = resolved
+
+    s.last_activity_at = time.time()
 
     if conversation_reference:
         s.teams_conversation_reference = conversation_reference
