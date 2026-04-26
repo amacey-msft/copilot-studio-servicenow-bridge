@@ -31,86 +31,48 @@ the old `teams_bot/` keeps serving Teams users.
 
 - Bridge already deployed and reachable (`BRIDGE_PUBLIC_URL` set; web
   channel green per [`06-end-to-end-test.md`](06-end-to-end-test.md))
-- Permissions to create Azure Bot + Entra app registrations
-- Copilot Studio agent already published (the same one used by the
-  legacy `teams_bot/`)
+- Copilot Studio agent already published with the **Escalate topic
+  wired to the bridge HTTP action** per
+  [`04-copilot-studio.md`](04-copilot-studio.md). The exact same topic
+  works for Teams — no Teams-specific changes are required there.
+- Permissions to create an Azure Bot resource
 
-> **Important UX change:** the M365 Agents SDK Copilot Studio client
-> currently supports **delegated/OBO only** (S2S not yet shipped). End
-> users will see a Teams sign-in card on first message. The legacy
-> `teams_bot/` does not require this because it talks Direct Line with
-> a server-side token.
+> If you skipped the web channel and came straight to Teams: you still
+> need [`02-servicenow-setup.md`](02-servicenow-setup.md) (AWA queue +
+> outbound webhook) and [`04-copilot-studio.md`](04-copilot-studio.md)
+> (Escalate topic). The Teams path reuses both. Only `04` step 2
+> (the HTTP action) is required; you can skip the
+> `Bot.SendActivity` for the browser — it's harmless when invoked from
+> Teams since the agent never reads it.
+
+> **No user sign-in card.** This service runs in **Direct Line parity
+> mode**: the agent calls the bridge's `/directline/token` proxy, which
+> mints a server-side Copilot Studio Direct Line token. End users open
+> Teams, type, get answer. No OBO. No Entra app for delegation. No bot
+> OAuth Connection. (The legacy `teams_bot/` works the same way — we
+> kept that property.)
 
 ## 1. Create a NEW Azure Bot resource
 
-Do not reuse the legacy bot. We want true side-by-side so rollback is
-trivial.
+Do not reuse the legacy `teams_bot/` bot. We want true side-by-side so
+rollback is trivial. The provisioning script
+[`scripts/provision-teams-agent.ps1`](../scripts/provision-teams-agent.ps1)
+automates this; the manual steps are listed below for reference.
 
 1. Azure portal -> Create -> **Azure Bot**.
 2. Bot handle: e.g. `cps-sn-agent-dev`.
-3. Type of App: **Single Tenant** (recommended for OBO scenarios).
+3. Type of App: **Single Tenant** (recommended; `MultiTenant` is
+   deprecated in `az bot create` since late 2024).
 4. Create a new Microsoft App ID. Save the **Application (client) ID** ->
    `AZURE_BOT_APP_ID`.
 5. Configuration -> Manage Microsoft App ID -> Certificates & secrets ->
    New client secret. Save the *value* -> `AZURE_BOT_APP_PASSWORD`.
 6. Configuration -> Messaging endpoint -> `https://<agent-host>/api/messages`.
-7. Channels -> add **Microsoft Teams**. Accept terms.
+7. Channels -> add **Microsoft Teams** (`az bot msteams create`). Accept
+   terms.
 8. Note the **Tenant ID** of your subscription -> `AZURE_BOT_TENANT_ID`.
 
-## 2. Create the OBO app registration
-
-This is what lets the agent exchange the user's Teams sign-in token for a
-Copilot Studio-callable token. Same pattern as the .NET GenesysHandoff
-sample.
-
-1. Entra ID -> App registrations -> New registration.
-2. Name: `cps-sn-agent-obo`.
-3. Supported account types: **Single tenant**.
-4. Register.
-5. **Authentication** -> Add a platform -> **Web** -> Redirect URI:
-   `https://token.botframework.com/.auth/web/redirect`.
-6. Authentication -> Add a platform -> **Mobile and desktop applications**
-   -> Redirect URI: `http://localhost`. (Required by the SDK auth flow.)
-7. **API permissions** -> Add a permission. Add all three (Delegated):
-   - **Power Platform API** -> `CopilotStudio.Copilots.Invoke`
-   - **Microsoft Graph** -> `User.Read`
-   - **Dynamics CRM** -> `user_impersonation`
-   Then **Grant admin consent**.
-
-   > If "Power Platform API" doesn't appear in the picker, follow
-   > [Power Platform API Authentication, step 2](https://learn.microsoft.com/power-platform/admin/programmability-authentication-v2#step-2-configure-api-permissions)
-   > to add it to your tenant.
-8. **Expose an API** -> Set Application ID URI to
-   `api://botid-<this-app's-client-id>` -> Add scope `defaultScope`,
-   "Admins and users", fill required text, Add scope.
-9. **Certificates & secrets** -> New client secret. Save the value ->
-   `OBO_CLIENT_SECRET`. The app's Application (client) ID -> `OBO_CLIENT_ID`.
-
-## 3. Wire the OAuth connection on the Azure Bot
-
-1. Open the Azure Bot from step 1 -> **Configuration** -> **OAuth Connection
-   Settings** -> **Add Setting**.
-2. Name: `mcs` (this becomes `AZURE_BOT_OAUTH_CONNECTION_NAME`; any name
-   works as long as it matches your env).
-3. Service Provider: **Azure Active Directory v2**.
-4. Client id: the OBO app's Application (client) ID.
-5. Client secret: the secret from step 2.9.
-6. Tenant ID: your tenant.
-7. Scopes: `api://botid-<obo-app-client-id>/defaultScope`
-8. Save -> click **Test connection** to verify.
-
-## 4. Get Copilot Studio metadata
-
-Open your existing CS agent in [copilotstudio.microsoft.com](https://copilotstudio.microsoft.com)
--> Settings -> Advanced -> **Metadata**:
-
-- Schema name -> `COPILOTSTUDIO_SCHEMA_NAME`
-- Environment ID -> `COPILOTSTUDIO_ENVIRONMENT_ID`
-
-(No changes to the agent itself are required for Stage 1. The Stage 2
-"Genesys-style escalation event" is optional and covered at the bottom.)
-
-## 5. Configure `teams_agent/.env`
+## 2. Configure `teams_agent/.env`
 
 Copy `teams_agent/.env.example` to `teams_agent/.env` and fill in:
 
@@ -119,24 +81,23 @@ AZURE_BOT_APP_ID=...                   # from step 1.4
 AZURE_BOT_APP_PASSWORD=...             # from step 1.5
 AZURE_BOT_APP_TYPE=SingleTenant
 AZURE_BOT_TENANT_ID=...                # from step 1.8
-AZURE_BOT_OAUTH_CONNECTION_NAME=mcs    # from step 3.2
 
-OBO_CLIENT_ID=...                      # from step 2.9
-OBO_CLIENT_SECRET=...                  # from step 2.9
-OBO_TENANT_ID=...                      # same tenant id
-
-COPILOTSTUDIO_ENVIRONMENT_ID=...       # from step 4
-COPILOTSTUDIO_SCHEMA_NAME=...          # from step 4
-COPILOTSTUDIO_HANDOFF_EVENT_NAME=ServiceNowHandoff
-
-BRIDGE_INTERNAL_URL=http://bridge:5000  # or http://127.0.0.1:5000 for local
+# Bridge callback. From inside Docker on Windows/macOS use
+# host.docker.internal; pass --add-host host.docker.internal:host-gateway
+# on docker run for Linux containers.
+BRIDGE_INTERNAL_URL=http://host.docker.internal:5001
 PUSH_SHARED_SECRET=<long random string>
 
 PORT=3978
 LOG_LEVEL=INFO
 ```
 
-## 6. Run `teams_agent/` locally
+> **`OBO_*` and `AZURE_BOT_OAUTH_CONNECTION_NAME` are not required.**
+> They're left in `config.py` as opt-in placeholders if you ever want to
+> flip back to the SDK's delegated `CopilotClient` path; the current
+> `dl.py` Direct Line parity flow ignores them.
+
+## 3. Run `teams_agent/` locally
 
 ```powershell
 # From repo root
@@ -161,7 +122,7 @@ Update the Azure Bot from step 1 -> Configuration -> Messaging endpoint to
 `https://<your-agent-tunnel>-3978.<region>.devtunnels.ms/api/messages` and
 **Apply**.
 
-## 7. Wire the bridge's outbound push
+## 4. Wire the bridge's outbound push
 
 Edit `bridge/.env` (the existing file used by the Flask bridge):
 
@@ -184,7 +145,7 @@ docker compose -f bridge/docker-compose.yml logs -f bridge | Select-String "push
 When you only want the new path, set `TEAMS_PUSH_TARGET=agent`. To roll
 back, set it to `legacy` (or unset; default is legacy).
 
-## 8. Sideload the new Teams app
+## 5. Sideload the new Teams app
 
 Build a *new* Teams app manifest with the **new** Azure Bot's app id (do
 NOT edit the legacy `teams_bot/manifest/manifest.json`). Recommended layout:
@@ -203,26 +164,27 @@ can install both in parallel. Same goes for `name.short` (e.g. add
 
 Sideload via Teams -> Apps -> Manage your apps -> Upload a custom app.
 
-## 9. Smoke test
+## 6. Smoke test
 
 1. Open the new Teams app.
-2. Send "hi" — you'll see a sign-in card. Sign in with the same tenant
-   account you used to test the web channel.
-3. After sign-in, expect an automated reply from your CS agent.
-4. Type "talk to a human" (or whatever your Escalate trigger is). The CS
-   topic still calls the bridge's existing `/api/servicenow/agent/escalate`
-   HTTP action — no change required there.
-5. Bridge state moves BOT -> QUEUED. The bridge fires the
+2. Send "hi" — expect an automated reply from your CS agent (no sign-in
+   card; this is DL parity mode).
+3. Type "talk to a human" (or whatever your Escalate trigger is). The CS
+   topic calls the bridge's `/api/servicenow/agent/escalate` HTTP action
+   exactly like the web channel does — no Teams-specific changes there.
+   See [`04-copilot-studio.md`](04-copilot-studio.md) if you haven't
+   wired it yet.
+4. Bridge state moves BOT -> QUEUED. The bridge fires the
    "Connecting an agent..." status push. With `TEAMS_PUSH_TARGET=both`
    you'll see it in BOTH the new and legacy Teams app installs.
-6. In ServiceNow, accept the work item. Bridge -> LIVE. Type a reply on
+5. In ServiceNow, accept the work item. Bridge -> LIVE. Type a reply on
    the agent side; it appears in the new Teams app via
    `/api/teams/push` -> `continue_conversation`.
 
 If anything fails, check `docker logs` for both `bridge` and the new agent
 container, then jump to [`07-troubleshooting.md`](07-troubleshooting.md).
 
-## 10. (Optional, Stage 2+) Genesys-style escalation event
+## 7. (Optional) Genesys-style escalation event
 
 The Stage 1 setup leaves CS topic -> bridge HTTP action wiring intact.
 The agent ALSO listens for an event activity named
@@ -235,7 +197,7 @@ from CS and let the agent own the escalation API call.
 ## Cutover checklist (when ready to retire the legacy relay)
 
 1. Set `TEAMS_PUSH_TARGET=agent` (not `both`) in `bridge/.env`. Restart.
-2. Validate end-to-end again per step 9.
+2. Validate end-to-end again per step 6.
 3. Uninstall legacy Teams app from your tenant (or just unpublish).
 4. Stop / scale-to-zero the legacy `teams_bot/` container.
 5. (Stage 3) Delete `teams_bot/`, remove `MS_APP_*` env vars, remove
