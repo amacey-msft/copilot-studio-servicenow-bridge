@@ -31,7 +31,8 @@ directly and uses `botbuilder-python`.
 | `config.py` | Env-var loader (separate from `teams_bot/config.py`) |
 | `state.py` | Per-conversation state: CS conversation id, escalation flag, CS reference |
 | `agent.py` | `AgentApplication` subclass — message router + escalation handler |
-| `cs_client.py` | Thin `CopilotClient` factory (uses OBO token from `UserAuthorization`) |
+| `dl.py` | Async Direct Line client (CS token from bridge, JWT user-id decode, map-dl-user) |
+| `cs_client.py` | **Unused in DL-parity mode.** Legacy `CopilotClient`/OBO factory kept for reference if you ever switch to the SDK's delegated path |
 | `bridge.py` | HTTP calls to the existing Flask bridge (init/escalate/user-message/reset) |
 | `app.py` | aiohttp host: `/api/messages` + `/api/teams/push` proactive callback |
 | `requirements.txt` | `microsoft-agents-*` 0.9.x + aiohttp |
@@ -56,38 +57,34 @@ on its own bot id / app id.
 
 ## Required Azure setup before running
 
-This is a delegated/OBO flow; **end users will see a Teams sign-in card
-on first message**. Server-to-service (S2S) for Copilot Studio is not yet
-supported as of `microsoft-agents-copilotstudio-client` 0.9.0.
+This runs in **Direct Line parity mode**: the agent talks to Copilot Studio
+via the bridge's `/directline/token` proxy, not via the SDK's `CopilotClient`
++ OBO sign-in flow. **No user sign-in card. No Entra OBO app reg. No bot
+OAuth connection.** End users open Teams, type, get answer.
 
-1. **New** Azure Bot resource (don't reuse the old one):
-   - Auth type: SingleTenant (recommended) or MultiTenant
-   - Messaging endpoint: `https://<host>/api/messages`
-   - Add Microsoft Teams channel
-2. **New** Entra app reg for OBO (named e.g. `cps-handoff-obo`):
-   - Single tenant
-   - Redirect URI (Web): `https://token.botframework.com/.auth/web/redirect`
-   - API permissions (Delegated): `Power Platform API → CopilotStudio.Copilots.Invoke`,
-     `Microsoft Graph → User.Read`, `Dynamics CRM → user_impersonation`
-   - Expose an API: `api://botid-<obo-app-id>` with scope `defaultScope`
-   - Create a client secret
-3. On the Azure Bot, add an OAuth Connection Setting:
-   - Service Provider: Azure Active Directory v2
-   - Client id / secret: from the OBO app reg above
-   - Scope: `api://botid-<obo-app-id>/defaultScope`
-   - Note its *connection name* — goes in env as `AZURE_BOT_OAUTH_CONNECTION_NAME`
-4. Copilot Studio agent metadata (Settings → Advanced → Metadata):
-   - Schema name → `COPILOTSTUDIO_SCHEMA_NAME`
-   - Environment id → `COPILOTSTUDIO_ENVIRONMENT_ID`
-5. (Optional, for full Genesys parity) edit the CS **Escalate** system topic:
-   - Add an Event node named `ServiceNowHandoff` at the end
-   - Set its value to a summary variable
-   - This is what makes the agent take over the message path on escalation.
-   - Without this, escalation still works because the CS topic also calls
-     the bridge's `/api/servicenow/agent/escalate` HTTP action directly,
-     and the bridge will push state via `/api/teams/push`.
+1. **New** Azure Bot resource (don't reuse the legacy `teams_bot/` one):
+   - Auth type: `SingleTenant` (recommended; set `--tenant-id`) or `MultiTenant`
+     - `MultiTenant` is **deprecated** in `az bot create` since late 2024;
+       use `SingleTenant` unless you specifically need it.
+   - Messaging endpoint: `https://<agent-host>/api/messages`
+   - Add Microsoft Teams channel (`az bot msteams create`)
+2. Copilot Studio agent metadata (Settings → Advanced → Metadata):
+   - Schema name → bridge `COPILOTSTUDIO_SCHEMA_NAME`
+   - Environment id → bridge `COPILOTSTUDIO_ENVIRONMENT_ID`
+   - These live on the **bridge** side, not in `teams_agent/.env`. The
+     bridge mints a Direct Line token and the agent picks it up via
+     `/directline/token`.
+3. Wire the CS **Escalate** topic to call
+   `<BRIDGE_PUBLIC_URL>/api/servicenow/agent/escalate` with a JSON body
+   that includes `session_id`. The bridge resolves the CS-minted DL user
+   UUID back to the agent's `sid` via the `/api/teams/map-dl-user` reverse
+   index (registered automatically on every turn — see `dl.py`).
 
-Detailed walkthrough lives in `docs/13-teams-agent-setup.md` (Stage 2).
+The `OBO_*` and `AZURE_BOT_OAUTH_CONNECTION_NAME` env vars are **read but
+not used** in DL-parity mode; they're kept in `config.py` so you can flip
+back to the SDK's delegated path without env churn.
+
+Detailed walkthrough lives in [`docs/13-teams-agent-setup.md`](../docs/13-teams-agent-setup.md).
 
 ## User commands (chat-side)
 
