@@ -24,6 +24,74 @@ it matches what `teams_bot/` already does:
 The legacy `teams_bot/` does the same conceptually but talks Direct Line
 directly and uses `botbuilder-python`.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    User((User in<br/>Teams client))
+    subgraph Azure["Azure / Bot Framework"]
+        Bot[Azure Bot<br/>Teams channel]
+    end
+    subgraph Agent["teams_agent (this folder)"]
+        Msgs["/api/messages<br/>(CloudAdapter)"]
+        AgentApp[agent.py<br/>state machine]
+        DL[dl.py<br/>Direct Line client]
+        Push["/api/teams/push<br/>proactive callback"]
+    end
+    subgraph Bridge["bridge/ (Flask, unchanged)"]
+        DLToken["/directline/token<br/>(CS token mint)"]
+        InitSess["/api/teams/init-session"]
+        UserMsg["/api/teams/user-message"]
+        MapDL["/api/teams/map-dl-user"]
+        Escalate["/api/servicenow/agent/escalate"]
+        Webhook["/api/servicenow/webhook"]
+        Sessions[("In-memory<br/>sessions +<br/>indexes")]
+    end
+    subgraph CS["Copilot Studio"]
+        CSAgent[CS agent<br/>+ Escalate topic]
+    end
+    subgraph SN["ServiceNow"]
+        AWA[AWA queue +<br/>work_item]
+        CSR((CSR in Service<br/>Operations<br/>Workspace))
+    end
+
+    User -- "type" --> Bot
+    Bot -- "activity" --> Msgs --> AgentApp
+    AgentApp -- "fetch CS token" --> DLToken
+    AgentApp -- "post user msg" --> DL
+    DL -- "post activity" --> CSAgent
+    CSAgent -- "bot reply / handoff event" --> DL
+    DL -- "register dl_user_id sid" --> MapDL
+    AgentApp -- "init/forward/reset" --> InitSess
+    AgentApp -- "live-state user msg" --> UserMsg
+    CSAgent -- "Escalate HTTP action" --> Escalate
+    Escalate -- "create work_item" --> AWA
+    AWA --> CSR
+    CSR -- "agent reply" --> Webhook
+    Webhook -- "proactive push" --> Push
+    Push -- "continue_conversation" --> Bot
+    Bot --> User
+    Bridge <--> Sessions
+```
+
+Key points the diagram encode:
+
+- **Single channel owner.** `teams_agent` owns `/api/messages`; the bridge
+  never talks to Teams directly. CSR replies reach the user via the bridge's
+  outbound `/api/teams/push` → `continue_conversation`.
+- **No user sign-in.** Direct Line token is minted **server-side** by the
+  bridge from a Copilot Studio Direct Line secret. End users see no OAuth
+  card; this matches the legacy `teams_bot/` UX.
+- **State machine in three states:** `bot` (forward to CS), `queued`
+  (waiting for CSR), `live` (forward to SN AWA work_item via `user-message`).
+  See `agent.py` `handle_turn`.
+- **DL user-id mapping.** `dl.py` decodes the CS DL token JWT, extracts
+  the `user` claim, and registers `dl_user_id → sid` with the bridge so
+  the CS Escalate HTTP action's `session_id = System.Activity.From.Id`
+  resolves correctly even though it's a CS-minted UUID. See
+  [`docs/13`](../docs/13-teams-agent-setup.md) "Behavior notes".
+- **Existing browser webchat path is unchanged.** This sits alongside it.
+
 ## What's in this folder (Stage 1)
 
 | File | Purpose |
