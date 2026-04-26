@@ -24,6 +24,10 @@ it matches what `teams_bot/` already does:
 The legacy `teams_bot/` does the same conceptually but talks Direct Line
 directly and uses `botbuilder-python`.
 
+> **Why the new SDK?** Side-by-side comparison of Bot Framework SDK vs
+> M365 Agents SDK (architecture, what's better, what's still rough) lives
+> in [`docs/10-teams-channel-overview.md`](../docs/10-teams-channel-overview.md#bot-framework-sdk-vs-m365-agents-sdk--what-actually-differs).
+
 ## Architecture
 
 ```mermaid

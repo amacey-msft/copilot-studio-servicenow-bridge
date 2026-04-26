@@ -21,6 +21,153 @@ A bridge env var `TEAMS_PUSH_TARGET` (`legacy` / `agent` / `both`)
 chooses which implementation receives the proactive pushes from
 ServiceNow webhooks, so cutover is a single env flip.
 
+## Bot Framework SDK vs M365 Agents SDK — what actually differs
+
+This is the question to answer before picking. Both end up serving
+`/api/messages` to Teams; what changes is the SDK around it.
+
+### Bot Framework SDK (`teams_bot/`, `botbuilder-python` 4.17.x)
+
+- **Provenance.** Started life as Microsoft Bot Framework v3 (~2016),
+  morphed into v4 (~2018). The current Python package is in
+  *maintenance only*; Microsoft's public guidance points new work at the
+  M365 Agents SDK.
+- **Activity model.** `BotFrameworkAdapter` (older) or `CloudAdapter`
+  (newer) wraps every inbound payload into a `TurnContext`. You subclass
+  `ActivityHandler` / `TeamsActivityHandler` and override
+  `on_message_activity`, `on_event_activity`, etc. Routing is by
+  *activity type*; you write the dispatch.
+- **State.** Pluggable `Storage` + `BotState` + `StatePropertyAccessor`
+  pyramid. Powerful but verbose. We bypass it in `teams_bot/` and store
+  per-session state in our own bridge dict; the BF state objects exist
+  only for `ConversationReference` capture.
+- **Proactive push.** `adapter.continue_conversation(reference, callback)`.
+  Requires you to keep a `ConversationReference` per user.
+- **Auth.** `MicrosoftAppCredentials` + an Azure Bot resource. JWT
+  validation is done by the adapter on inbound, app id/password on
+  outbound. SingleTenant / MultiTenant / UserAssignedMSI app types.
+- **Web host.** Anything; we use Flask + `flask_sock` + a thread-pool
+  bridge to the SDK's asyncio loop in `teams_bot/runtime.py`. That bridge
+  exists *because* `botbuilder-python` is async-only and the rest of the
+  bridge is sync Flask.
+- **Distribution friction.** `botframework-connector` imports `aiohttp`
+  transitively but doesn't declare it as a dependency; `CloudAdapter` and
+  `ConfigurationBotFrameworkAuthentication` moved out of `botbuilder.core`
+  into `botbuilder.integration.aiohttp` in 4.17 without a deprecation
+  shim. Bumping minor versions has historically been painful.
+- **Copilot Studio integration.** Done by hand via raw Direct Line
+  REST/WebSocket calls in `teams_bot/directline.py`. SDK has no
+  first-class concept of "talk to a CS agent."
+
+### M365 Agents SDK (`teams_agent/`, `microsoft-agents-*` 0.9.x)
+
+- **Provenance.** New in 2025; replacement for Bot Framework SDK.
+  Repository: <https://github.com/microsoft/Agents>. Python, .NET, JS
+  all in active development. Designed around the *agent* (single-purpose,
+  may delegate) rather than the *bot* (multi-skill rule engine).
+- **Activity model.** `AgentApplication` with **decorator routing**:
+  `@app.activity("message")`, `@app.event("handoff.initiate")`,
+  `@app.message("/reset")`. Closer to FastAPI than to old BF. The
+  underlying transport is still Bot Framework / Azure Bot under the hood
+  — the *channel* is the same; only the framing changed.
+- **State.** First-class `TurnState` you read/write directly; conversation
+  state is a normal dict scoped to the activity. Less ceremony.
+- **Proactive push.** `app.adapter.continue_conversation(reference, ...)`
+  — same primitive as BF, just exposed off the app.
+- **Auth.** `MsalConnectionManager` + Azure Bot resource (or, for some
+  scenarios, no Azure Bot at all — the SDK has a "developer" auth path).
+  Same `SingleTenant` / `MultiTenant` / `UserAssignedMsi` app types.
+- **Web host.** Bundled aiohttp host; we just call
+  `app.run(host=..., port=3978)`. No sync/async impedance because there
+  is no sync Flask in the agent process — the agent calls the bridge
+  over HTTP exactly like any other client.
+- **Copilot Studio integration.** First-class. Two paths:
+  1. **Delegated `CopilotClient`** with OBO (`microsoft-agents-copilotstudio-client`).
+     User sees a sign-in card; the SDK exchanges tokens for you. This is
+     the path the .NET GenesysHandoff sample uses.
+  2. **Server-side Direct Line** (what we do in `teams_agent/dl.py`).
+     The bridge mints a CS Direct Line token from a server-side secret;
+     the agent talks Direct Line directly. **No user sign-in card.**
+     We chose this because it preserves the legacy `teams_bot/` UX and
+     because S2S CS auth isn't yet shipped on the SDK as of 0.9.0.
+- **Distribution.** Single coherent set of packages
+  (`microsoft-agents-hosting-aiohttp`, `microsoft-agents-authorization-msal`,
+  `microsoft-agents-copilotstudio-client`). Less version-skew risk than BF.
+
+### Side-by-side
+
+| Concern | `teams_bot/` (BF SDK) | `teams_agent/` (Agents SDK) |
+| ------- | --------------------- | --------------------------- |
+| Routing | `ActivityHandler` overrides | `@app.activity` / `@app.event` decorators |
+| Async story | async-only SDK in a sync Flask host (thread bridge) | uniformly async (aiohttp) |
+| State | pluggable but verbose `BotState` | direct `TurnState` dict |
+| CS integration | hand-rolled Direct Line REST | first-class via `CopilotClient` *or* DL parity |
+| User sign-in | none (server-side DL token) | none in our DL-parity build (default to OBO if you use `CopilotClient`) |
+| Push to user | `adapter.continue_conversation` | `app.adapter.continue_conversation` |
+| Manifest | unchanged Teams app manifest | unchanged Teams app manifest |
+| Future-proofing | maintenance mode | active investment path |
+
+### What's actually better in the Agents SDK build
+
+1. **One async loop, end to end.** Removes the
+   `runtime.process_activity_sync` thread-bridge wart in `teams_bot/`.
+   That wart was needed because Flask is sync and the SDK is async; in
+   `teams_agent/` the agent is its own aiohttp process so there's
+   nothing to bridge. Easier to reason about, no mystery hangs from
+   queueing a coroutine onto the wrong loop.
+2. **Decorator routing.** `@app.activity("message")` is impossible to
+   silently miss; the legacy `teams_bot/relay.py` had a regex
+   catch-all (`@app.message(re.compile(".*"))`) that quietly dropped any
+   message containing a newline because Python `.` doesn't match `\n`.
+   See [`07-troubleshooting.md`](07-troubleshooting.md). This class of
+   bug is structurally harder to write in the new SDK.
+3. **First-class Copilot Studio path.** `CopilotClient` exists; if you
+   ever want to switch from server-side DL to delegated OBO sign-in the
+   plumbing is already in `teams_agent/cs_client.py` — just stop calling
+   `dl.py` and route through `CopilotClient`.
+4. **Cleaner package surface.** No undeclared `aiohttp` transitive,
+   no `botbuilder.integration.aiohttp` mystery move; everything lives
+   under `microsoft-agents-*`. Easier to pin / upgrade.
+5. **Forward investment.** Microsoft's public roadmap puts new features
+   (multi-agent orchestration, A2A, MCP integration) in the Agents SDK.
+   Bot Framework gets bug fixes only.
+
+### What's the same (good and bad)
+
+- **Same Azure Bot resource shape** (just a new instance). Same
+  channel-add command (`az bot msteams create`). Same Teams app manifest
+  schema. Same JWT validation story.
+- **Same proactive push primitive** — both call
+  `adapter.continue_conversation` under the hood. Bridge code that
+  POSTs to `/api/teams/push` doesn't care which SDK is on the other end.
+- **Same user-visible behavior in this repo.** We deliberately kept the
+  DL parity path so end users notice nothing on cutover (no sign-in
+  card). `TEAMS_PUSH_TARGET=both` lets you run them in parallel.
+
+### What's worse / where the Agents SDK still has rough edges
+
+- **0.9.x is pre-1.0.** API surface is still settling; expect to bump
+  minor versions and re-read changelogs.
+- **No native server-to-server CS auth** as of 0.9.0. To call CS without
+  a user sign-in we had to mint Direct Line tokens server-side via the
+  bridge (`/directline/token`). That works but isn't the SDK's default
+  path; the canonical samples assume OBO.
+- **Sparser docs.** Bot Framework has 10 years of Stack Overflow; the
+  Agents SDK does not yet.
+- **Behavioral parity gaps.** A few small things (typing indicator
+  cadence, Adaptive Card refresh semantics) needed manual matching to
+  feel identical to the legacy bot.
+
+### Decision matrix
+
+| If you... | Use |
+| --------- | --- |
+| Are starting fresh | `teams_agent/` (Agents SDK) |
+| Need a server-side-only auth flow | `teams_agent/` (DL parity) |
+| Want to plug into multi-agent orchestration / A2A / MCP later | `teams_agent/` |
+| Need to ship today and your CI already pins `botbuilder-python` | `teams_bot/` is fine; switch when you next touch it |
+| Are doing a one-off skill dialog and don't care about CS | either; BF has more SO answers |
+
 ## The flow
 
 ```
