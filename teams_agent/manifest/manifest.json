@@ -1,0 +1,35 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "b8d2e4f9-ac3f-4e7d-9a2b-3f5c7e9d1b2c",
+  "packageName": "com.copilotstudio.servicenow.relay.agent",
+  "developer": {
+    "name": "CPS-SN Bridge Reference",
+    "websiteUrl": "https://REPLACE-WITH-AGENT-PUBLIC-HOST.example.com",
+    "privacyUrl": "https://REPLACE-WITH-AGENT-PUBLIC-HOST.example.com/privacy",
+    "termsOfUseUrl": "https://REPLACE-WITH-AGENT-PUBLIC-HOST.example.com/terms"
+  },
+  "icons": {
+    "color": "icon-color.png",
+    "outline": "icon-outline.png"
+  },
+  "name": {
+    "short": "IT Helper (Agent SDK)",
+    "full": "IT Helper Bot (M365 Agents SDK)"
+  },
+  "description": {
+    "short": "Ask IT, escalate to a live agent (Agents SDK port).",
+    "full": "M365 Agents SDK port of the Copilot Studio + ServiceNow relay. Side-by-side install with the legacy IT Helper bot during cutover."
+  },
+  "accentColor": "#0078D4",
+  "bots": [
+    {
+      "botId": "REPLACE-WITH-AZURE_BOT_APP_ID",
+      "scopes": ["personal"],
+      "isNotificationOnly": false,
+      "supportsFiles": false
+    }
+  ],
+  "validDomains": []
+}
