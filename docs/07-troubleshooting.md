@@ -161,3 +161,89 @@ what the orchestrator uses — make it specific (mention "human", "agent",
 - **`docker logs -f <bridge container>`** (or whatever process supervisor
   you use) — most issues surface here within a few seconds of the root
   cause.
+
+## Teams: bot stops responding after I cleared the conversation
+
+**Symptom:** You used the live-chat handoff, the CSR ended (or just
+walked away), then later you "Clear conversation" in Teams, reopen, and
+the bot ignores your messages. Bridge logs show
+`[webhook] dropping user-text echo for session=… text='…'`.
+
+**Cause:** Teams "Clear conversation" is client-only. The bridge still
+has your `BridgeSession` in `state=live` and forwards every new turn to
+the dead ServiceNow `interaction`. The webhook drops the message as a
+duplicate of itself.
+
+**Fix:**
+
+1. **As a user:** type `new` (or `reset`, `restart`, `start over`). The
+   agent calls `/api/teams/reset-session` and the next turn allocates a
+   fresh bot session.
+2. **Automatic:** the bridge recycles a stale `live` session on the next
+   `init-session` call once it's been idle for `TEAMS_LIVE_IDLE_RECYCLE_S`
+   seconds (default **900s** / 15 min). Tune via env var.
+
+See `teams_agent/README.md` → "User commands" and
+"Session auto-recycle" for the full list of reset phrases and recycle
+thresholds.
+
+## Teams (Agents SDK): Copilot Studio escalate tool returns "session not found"
+
+**Symptom:** The CS Escalate topic fires (you see the typing indicator,
+the "Connecting you with a live agent..." message), but no SN
+interaction is created. Bridge logs show
+`[agent] escalate hit ... body={"session_id":"<UUID>", ...}` followed by
+no further log lines (silent 404 from `_get_session`).
+
+**Cause:** Direct Line rewrites `from.id` on every user activity to the
+`user` claim encoded in the DL token (a UUID minted by Copilot Studio
+when the token endpoint is hit). CS then surfaces *that* UUID as
+`System.Activity.From.Id` inside topics. The CS Escalate HTTP tool
+typically passes `session_id: System.Activity.From.Id`, so the bridge
+receives a CS-minted UUID it has never seen, not the hex sid it
+allocated for the user.
+
+**Fix:** The agent decodes the DL token JWT after each mint and
+registers the `dl_user_id -> sid` mapping via
+`POST /api/teams/map-dl-user`. The bridge falls back to that reverse
+index when the direct sid lookup fails. If you see this symptom on a
+fresh deploy, verify:
+
+1. `teams_agent/dl.py` `_decode_dl_user_id()` is being called (look for
+   `[teams] map-dl-user dl=… -> sid=…` in bridge logs after each new
+   conversation).
+2. The agent container can reach the bridge over `BRIDGE_INTERNAL_URL`
+   (the mapping is registered via that URL).
+3. The CS escalate tool's `session_id` parameter is bound to
+   `System.Activity.From.Id` (or a stable user id you also send via
+   `channelData`), not to a per-turn activity id.
+
+## Teams (Agents SDK): bot ignores messages with newlines
+
+**Symptom:** Single-line text like "hi" works; multi-line text (paste
+from Outlook etc.) gets a typing indicator but no reply. Logs show the
+activity arriving at `/api/messages` but no handler firing.
+
+**Cause:** `@app.message(re.compile(".*"))` is a regex catch-all that
+silently fails to match text containing newlines because Python's `.`
+doesn't match `\n` without `re.DOTALL`.
+
+**Fix:** Use `@app.activity("message")` instead. Already applied in
+`teams_agent/app.py`; do not reintroduce the regex form.
+
+## Devtunnels: ID vs slug confusion
+
+**Symptom:** `devtunnel host <something>` fails with "tunnel not found",
+or the URL you put in the Azure Bot messaging endpoint never reaches
+your container.
+
+**Cause:** The devtunnel CLI uses two different identifiers:
+
+- **Tunnel ID** (e.g. `jolly-river-lw1s3ms`): the auto-generated friendly
+  name. This is what `devtunnel host` accepts.
+- **URL slug** (e.g. `pbqgkr6d`): a separate short token embedded in
+  the public hostname `https://<slug>-<port>.<region>.devtunnels.ms`.
+  This is what goes in the Azure Bot endpoint.
+
+`devtunnel list` shows the tunnel ID; the URL slug only appears in the
+hostname. Don't confuse them. See [`scripts/devtunnel-README.md`](../scripts/devtunnel-README.md).

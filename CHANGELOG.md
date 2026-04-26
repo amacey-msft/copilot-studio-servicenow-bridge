@@ -7,6 +7,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **`teams_agent/`**: M365 Agents SDK port of the Teams relay (Genesys-style
+  handoff). Runs side-by-side with the legacy `teams_bot/` so cutover and
+  rollback are flips of `TEAMS_PUSH_TARGET` (`legacy` / `agent` / `both`).
+  See [`docs/13-teams-agent-setup.md`](docs/13-teams-agent-setup.md). Tag
+  `pre-agents-sdk-refactor` marks the pre-refactor snapshot.
+- Bridge env-gated push dispatcher (`TEAMS_PUSH_TARGET`,
+  `TEAMS_AGENT_PUSH_URL`, `TEAMS_AGENT_PUSH_SECRET`).
+- **Direct Line user-id mapping** (`teams_agent/dl.py` +
+  `bridge.servicenow_bridge.map_dl_user`): the agent decodes the DL token
+  JWT after each token mint and registers the `dl_user_id -> sid` mapping
+  with the bridge via `POST /api/teams/map-dl-user`. This is what makes
+  the Copilot Studio "Escalate to live agent" HTTP tool work end-to-end:
+  CS exposes `System.Activity.From.Id` (which DL has rewritten to a
+  CS-minted UUID) as the `session_id` on the escalate POST; the bridge
+  resolves it back to our internal sid via the new reverse index.
+- **Live-state idle recycle** (`TEAMS_LIVE_IDLE_RECYCLE_S`, default 900s).
+  Teams "Clear conversation" is client-only — the bridge gets no signal,
+  so without this the next user turn forwards into a dead live-chat. The
+  bridge now auto-recycles a stale `live` session into a fresh `bot`
+  session after 15 min idle (or immediately on a `closed` state, or after
+  the existing 1-hour catch-all for any non-bot state).
+
+### Fixed
+- Agent SDK message route used a regex catch-all (`@app.message(re.compile(".*"))`)
+  which silently failed to match text containing newlines. Switched to
+  `@app.activity("message")` so every message activity is dispatched.
+
+### Deprecated
+- `teams_bot/` (Bot Framework `botbuilder-python`). Will be removed once
+  parity with `teams_agent/` is validated end-to-end.
+
+### Added
 - **Microsoft Teams channel** as a first-class second front-end alongside
   the browser webchat. A new `teams_bot/` package adds a Bot Framework
   relay that proxies Teams 1:1 chats to the same Copilot Studio agent

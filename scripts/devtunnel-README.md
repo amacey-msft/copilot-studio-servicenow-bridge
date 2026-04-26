@@ -62,3 +62,42 @@ To stop and delete the tunnel when done:
 If you change the host port in `bridge/docker-compose.yml`, update the
 `$Port` variable at the top of `devtunnel-create.ps1` and
 `devtunnel-host.ps1`.
+
+## Tunnel ID vs URL slug
+
+The devtunnel CLI uses two different identifiers — don't confuse them:
+
+| Identifier | Example | Where you use it |
+| ---------- | ------- | ---------------- |
+| **Tunnel ID** | `jolly-river-lw1s3ms` | `devtunnel host <id>`, `devtunnel delete <id>`. Shown by `devtunnel list`. |
+| **URL slug** | `pbqgkr6d` | Only appears inside the public hostname `https://<slug>-<port>.<region>.devtunnels.ms`. This is what goes in the Azure Bot messaging endpoint, the bridge `BRIDGE_PUBLIC_URL`, and `TEAMS_AGENT_PUSH_URL`. |
+
+Get the URL slug from the output of `devtunnel-create.ps1`, or by
+running `devtunnel show <tunnel-id>`. Do **not** put the tunnel ID in
+the bot endpoint — it isn't a routable hostname component.
+
+## Two tunnels for the SDK port
+
+The new `teams_agent/` service runs on port 3978 and needs its own
+public hostname (separate from the bridge's 5001 tunnel) so the
+Azure Bot messaging endpoint can reach it independently of bridge
+traffic. Create with the same script:
+
+```powershell
+.\scripts\devtunnel-create.ps1 -Port 3978 -Label copilot-sn-agent
+```
+
+Run **both** hosts simultaneously in separate terminals:
+
+```powershell
+# terminal 1
+devtunnel host <bridge-tunnel-id> -p 5001 --allow-anonymous
+# terminal 2
+devtunnel host <agent-tunnel-id>  -p 3978 --allow-anonymous
+```
+
+If either host stops, the corresponding component goes dark. The
+`scripts/sync-bridge-url.ps1` helper updates the bridge's
+`BRIDGE_PUBLIC_URL` env after a tunnel restart; do an analogous
+update of the Azure Bot messaging endpoint when the agent tunnel
+slug changes.

@@ -3,10 +3,12 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+.venv-*/
 venv/
 .env
 .env.*
 !.env.sample
+!.env.example
 
 # Editor
 .vscode/
@@ -28,3 +30,5 @@ secret_*
 
 # Teams manifest build output
 teams_bot/manifest/dist/
+
+teams_agent/manifest/dist/
