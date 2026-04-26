@@ -8,7 +8,7 @@ samples](https://github.com/microsoft/Agents/tree/main/samples/dotnet/GenesysHan
 
 ## Why this exists
 
-A Microsoft developer flagged that `teams_bot/` is built on the deprecated
+The original Teams channel implementation, `teams_bot/`, is built on the deprecated
 Bot Framework SDK. The replacement guidance is the
 [Copilot Studio Samples — contact center](https://microsoft.github.io/CopilotStudioSamples/contact-center/)
 collection. We chose the **Genesys** pattern (not `skill-handoff`) because
