@@ -3,10 +3,12 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+.venv-*/
 venv/
 .env
 .env.*
 !.env.sample
+!.env.example
 
 # Editor
 .vscode/
