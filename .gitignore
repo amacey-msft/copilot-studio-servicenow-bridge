@@ -30,3 +30,5 @@ secret_*
 
 # Teams manifest build output
 teams_bot/manifest/dist/
+
+teams_agent/manifest/dist/

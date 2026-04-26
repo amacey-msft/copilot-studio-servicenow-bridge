@@ -43,40 +43,74 @@ async def _get_conv_store(conversation_id: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Adapter wiring  --  intentionally lazy so import doesn't fail without env
+# Adapter + AgentApplication wiring  -- lazy so import doesn't fail w/o env
 # ---------------------------------------------------------------------------
 
 _adapter = None
+_app = None  # AgentApplication
 
 
-def _build_adapter():
-    """Construct the SDK CloudAdapter on first request.
+def _build_app_and_adapter():
+    """Wire the SDK with a single SERVICE_CONNECTION (Azure Bot app reg).
 
-    Kept loose against 0.9.x because the exact factory class moved
-    between preview releases. Replace with the canonical
-    `CloudAdapter.from_configuration(...)` once locked.
+    Direct-Line parity: no Authorization / AuthHandler / OBO. CS is
+    reached via the bridge's `/directline/token` endpoint using the
+    shared DL secret, exactly like the legacy `teams_bot/`.
     """
     from microsoft_agents.hosting.aiohttp import CloudAdapter  # type: ignore
+    from microsoft_agents.hosting.core import (  # type: ignore
+        AgentAuthConfiguration,
+        MemoryStorage,
+    )
+    from microsoft_agents.hosting.core.authorization.auth_types import AuthTypes  # type: ignore
+    from microsoft_agents.authentication.msal import MsalConnectionManager  # type: ignore
+    from microsoft_agents.hosting.core.app import AgentApplication, ApplicationOptions  # type: ignore
 
-    # The adapter consumes a config object exposing `APP_ID`, `APP_PASSWORD`,
-    # `APP_TYPE`, `APP_TENANTID` — same shape teams_bot uses.
-    class _Cfg:
-        APP_ID = config.AZURE_BOT_APP_ID
-        APP_PASSWORD = config.AZURE_BOT_APP_PASSWORD
-        APP_TYPE = config.AZURE_BOT_APP_TYPE
-        APP_TENANTID = config.AZURE_BOT_TENANT_ID
+    service_cfg = AgentAuthConfiguration(
+        auth_type=AuthTypes.client_secret,
+        client_id=config.AZURE_BOT_APP_ID,
+        client_secret=config.AZURE_BOT_APP_PASSWORD,
+        tenant_id=config.AZURE_BOT_TENANT_ID,
+        connection_name="SERVICE_CONNECTION",
+    )
+    cm = MsalConnectionManager(
+        connections_configurations={"SERVICE_CONNECTION": service_cfg}
+    )
 
-        def get(self, k: str, default: Any = None) -> Any:
-            return getattr(self, k, default)
+    storage = MemoryStorage()
+    adapter = CloudAdapter(connection_manager=cm)
 
-    return CloudAdapter(_Cfg())
+    app = AgentApplication(
+        options=ApplicationOptions(
+            adapter=adapter,
+            bot_app_id=config.AZURE_BOT_APP_ID,
+            storage=storage,
+        ),
+        connection_manager=cm,
+    )
+
+    import re
+
+    @app.activity("message")
+    async def _on_message(context, state):  # noqa: ANN001
+        conv_id = getattr(context.activity.conversation, "id", "") or "default"
+        store = await _get_conv_store(conv_id)
+        await agent.handle_turn(context, store)
+
+    @app.activity("event")
+    async def _on_event(context, state):  # noqa: ANN001
+        conv_id = getattr(context.activity.conversation, "id", "") or "default"
+        store = await _get_conv_store(conv_id)
+        await agent.handle_turn(context, store)
+
+    return app, adapter
 
 
-def _get_adapter():
-    global _adapter
-    if _adapter is None:
-        _adapter = _build_adapter()
-    return _adapter
+def _get_app_and_adapter():
+    global _adapter, _app
+    if _app is None:
+        _app, _adapter = _build_app_and_adapter()
+    return _app, _adapter
 
 
 # ---------------------------------------------------------------------------
@@ -88,26 +122,9 @@ async def messages(request: web.Request) -> web.Response:
     if request.content_type != "application/json":
         return web.Response(status=415)
 
-    body = await request.json()
-    auth_header = request.headers.get("Authorization", "")
-
-    from microsoft_agents.activity import Activity  # type: ignore
-
-    activity = Activity().deserialize(body) if hasattr(Activity, "deserialize") else Activity(**body)
-
-    async def _logic(turn_context):
-        conv_id = getattr(turn_context.activity.conversation, "id", "") or "default"
-        store = await _get_conv_store(conv_id)
-        await agent.handle_turn(turn_context, store)
-
-    adapter = _get_adapter()
-    invoke_response = await adapter.process_activity(auth_header, activity, _logic)
-    if invoke_response is not None:
-        return web.json_response(
-            getattr(invoke_response, "body", invoke_response),
-            status=getattr(invoke_response, "status", 200),
-        )
-    return web.Response(status=200)
+    app, adapter = _get_app_and_adapter()
+    response = await adapter.process(request, app)
+    return response if response is not None else web.Response(status=200)
 
 
 async def teams_push(request: web.Request) -> web.Response:
@@ -127,12 +144,24 @@ async def teams_push(request: web.Request) -> web.Response:
     if not ref:
         return web.json_response({"error": "missing conversation_reference"}, status=400)
 
+    _log.info(
+        "teams_push ref_keys=%s bot=%s service_url=%s payload_type=%s",
+        list(ref.keys()), ref.get("bot"), ref.get("service_url") or ref.get("serviceUrl"), payload.get("type"),
+    )
+
     from microsoft_agents.activity import ConversationReference  # type: ignore
 
     reference = (
         ConversationReference().deserialize(ref)
         if hasattr(ConversationReference, "deserialize")
         else ConversationReference(**ref)
+    )
+    _log.info(
+        "teams_push deserialized bot=%s recipient=%s service_url=%s conv=%s",
+        getattr(reference, "bot", None),
+        getattr(reference, "user", None),
+        getattr(reference, "service_url", None) or getattr(reference, "serviceUrl", None),
+        getattr(reference, "conversation", None),
     )
 
     async def _logic(turn_context):
@@ -157,10 +186,17 @@ async def teams_push(request: web.Request) -> web.Response:
                 )
         # typing/unknown -> drop silently for now
 
-    adapter = _get_adapter()
+    adapter = _get_app_and_adapter()[1]
     try:
+        continuation = (
+            reference.get_continuation_activity()
+            if hasattr(reference, "get_continuation_activity")
+            else None
+        )
+        if continuation is None:
+            return web.json_response({"error": "bad conversation_reference"}, status=400)
         await adapter.continue_conversation(
-            reference, _logic, bot_app_id=config.AZURE_BOT_APP_ID
+            config.AZURE_BOT_APP_ID, continuation, _logic
         )
         return web.json_response({"ok": True})
     except Exception as exc:  # noqa: BLE001
@@ -183,8 +219,25 @@ async def healthz(_: web.Request) -> web.Response:
 # ---------------------------------------------------------------------------
 
 def create_app() -> web.Application:
+    from microsoft_agents.hosting.aiohttp import jwt_authorization_decorator  # type: ignore
+    from microsoft_agents.hosting.core import AgentAuthConfiguration  # type: ignore
+    from microsoft_agents.hosting.core.authorization.auth_types import AuthTypes  # type: ignore
+
+    # Auth config used by the JWT decorator on /api/messages to validate inbound BF tokens.
+    # The decorator extracts the JWT from `Authorization`, verifies it, and
+    # attaches a populated ClaimsIdentity (with `aud`/`appid`) to the request.
+    agent_cfg = AgentAuthConfiguration(
+        auth_type=AuthTypes.client_secret,
+        client_id=config.AZURE_BOT_APP_ID,
+        client_secret=config.AZURE_BOT_APP_PASSWORD,
+        tenant_id=config.AZURE_BOT_TENANT_ID,
+    )
+    # Required by `_jwt_patch_is_valid_aud` in the validator.
+    agent_cfg._connections = {"SERVICE_CONNECTION": agent_cfg}
+
     app = web.Application()
-    app.router.add_post("/api/messages", messages)
+    app["agent_configuration"] = agent_cfg
+    app.router.add_post("/api/messages", jwt_authorization_decorator(messages))
     app.router.add_post("/api/teams/push", teams_push)
     app.router.add_get("/healthz", healthz)
     return app

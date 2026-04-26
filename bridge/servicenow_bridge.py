@@ -61,6 +61,16 @@ TEAMS_SESSION_IDLE_TIMEOUT_S = float(
     os.environ.get("TEAMS_SESSION_IDLE_TIMEOUT_S", "3600")
 )
 
+# Shorter idle threshold for the LIVE state specifically. Covers the
+# common case where the user closes / clears the Teams chat after the
+# CSR walks away, then comes back later: the server has no signal that
+# the client cleared, so without this the next turn would forward into
+# a dead interaction. 15 min is short enough to avoid this trap but
+# long enough to survive a real user stepping away mid-conversation.
+TEAMS_LIVE_IDLE_RECYCLE_S = float(
+    os.environ.get("TEAMS_LIVE_IDLE_RECYCLE_S", "900")
+)
+
 # Which downstream Teams sender receives outbound pushes:
 #   "legacy"  -> in-process teams_bot.push (Bot Framework SDK; default)
 #   "agent"   -> HTTP POST to TEAMS_AGENT_PUSH_URL (M365 Agents SDK port)
@@ -123,6 +133,10 @@ _by_interaction: dict[str, str] = {}
 # Reverse index for Teams: AAD user key -> bridge sid (so each Teams user
 # keeps a stable sid across turns / app restarts of the Teams client).
 _by_teams_user: dict[str, str] = {}
+# Reverse index: Direct Line server-rewritten user id (UUID minted by CS
+# token endpoint, embedded in the JWT) -> bridge sid. The CS HTTP escalate
+# tool reads `System.Activity.From.Id` which is the DL user id, not our sid.
+_by_dl_user: dict[str, str] = {}
 
 
 def _get_session(sid: str) -> BridgeSession | None:
@@ -441,7 +455,14 @@ def init_session_teams():
     # store; the SN-side records (interaction etc.) remain in SN as history.
     if s is not None and s.state != STATE_BOT:
         idle_for = time.time() - (s.last_activity_at or s.created_at)
-        if s.state == STATE_CLOSED or idle_for > TEAMS_SESSION_IDLE_TIMEOUT_S:
+        live_stale = (
+            s.state == STATE_LIVE and idle_for > TEAMS_LIVE_IDLE_RECYCLE_S
+        )
+        if (
+            s.state == STATE_CLOSED
+            or live_stale
+            or idle_for > TEAMS_SESSION_IDLE_TIMEOUT_S
+        ):
             current_app.logger.info(
                 "[teams] recycling stale session sid=%s state=%s idle_s=%.0f",
                 s.sid, s.state, idle_for,
@@ -477,6 +498,11 @@ def init_session_teams():
     if conversation_reference:
         s.teams_conversation_reference = conversation_reference
 
+    current_app.logger.info(
+        "[teams] init-session sid=%s state=%s user_key=%s has_ref=%s",
+        s.sid, s.state, teams_user_key, bool(conversation_reference),
+    )
+
     return jsonify(
         {
             "session_id": s.sid,
@@ -503,6 +529,29 @@ def reset_session_teams():
             s = _sessions.pop(sid, None)
             if s and s.interaction_sys_id:
                 _by_interaction.pop(s.interaction_sys_id, None)
+    return jsonify({"ok": True})
+
+
+@bp.route("/api/teams/map-dl-user", methods=["POST"])
+def map_dl_user():
+    """Register a `dl_user_id -> sid` mapping.
+
+    The Copilot Studio HTTP escalate tool reads `System.Activity.From.Id`
+    which Direct Line rewrites to the user id encoded in the DL token (a
+    UUID minted by CS that we cannot pin via `?userId=`). The teams_agent
+    extracts that id from the DL JWT after token mint and registers it
+    here so `/api/servicenow/agent/escalate` can resolve it back to our sid.
+    """
+    data = request.get_json(silent=True) or {}
+    sid = (data.get("session_id") or "").strip()
+    dl_user_id = (data.get("dl_user_id") or "").strip()
+    if not sid or not dl_user_id:
+        return jsonify({"error": "session_id and dl_user_id required"}), 400
+    if _get_session(sid) is None:
+        return jsonify({"error": "unknown session"}), 404
+    with _sessions_lock:
+        _by_dl_user[dl_user_id] = sid
+    current_app.logger.info("[teams] map-dl-user dl=%s -> sid=%s", dl_user_id, sid)
     return jsonify({"ok": True})
 
 
@@ -545,6 +594,16 @@ def agent_escalate():
     if not sid:
         return jsonify({"error": "session_id required"}), 400
     s = _get_session(sid)
+    if s is None:
+        # CS HTTP tool sends `System.Activity.From.Id` which is the DL-rewritten
+        # user id, not our bridge sid. Look up via the dl_user_id reverse index.
+        mapped_sid = _by_dl_user.get(sid)
+        if mapped_sid:
+            s = _get_session(mapped_sid)
+            if s is not None:
+                current_app.logger.info(
+                    "[agent] escalate resolved dl_user_id=%s -> sid=%s", sid, mapped_sid,
+                )
     if not s:
         return jsonify({"error": "unknown session"}), 404
     if s.state in (STATE_QUEUED, STATE_LIVE):

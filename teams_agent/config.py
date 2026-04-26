@@ -52,16 +52,23 @@ BRIDGE_INTERNAL_URL = os.environ.get(
 PUSH_SHARED_SECRET = os.environ.get("PUSH_SHARED_SECRET", "").strip()
 
 
+# --- Direct Line (CS proxy via bridge) -------------------------------------
+
+# Mirror the legacy teams_bot tunables.
+DIRECTLINE_TURN_TIMEOUT_S = float(os.environ.get("DIRECTLINE_TURN_TIMEOUT_S", "12"))
+DIRECTLINE_QUIET_PERIOD_S = float(os.environ.get("DIRECTLINE_QUIET_PERIOD_S", "1.5"))
+DIRECTLINE_POLL_INTERVAL_S = float(os.environ.get("DIRECTLINE_POLL_INTERVAL_S", "0.5"))
+
+
 # --- Hosting ---------------------------------------------------------------
 
 PORT = int(os.environ.get("PORT", "3978"))
 
 
 def is_configured() -> bool:
-    """Minimal sanity check; surfaces obvious misconfig early in `app.py`."""
-    return bool(
-        AZURE_BOT_APP_ID
-        and AZURE_BOT_TENANT_ID
-        and COPILOTSTUDIO_ENVIRONMENT_ID
-        and COPILOTSTUDIO_SCHEMA_NAME
-    )
+    """Minimal sanity check; surfaces obvious misconfig early in `app.py`.
+
+    Direct-Line parity mode: only the Azure Bot registration is required
+    locally; CS env/schema live on the bridge side via `/directline/token`.
+    """
+    return bool(AZURE_BOT_APP_ID and AZURE_BOT_TENANT_ID)

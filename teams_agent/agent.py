@@ -22,7 +22,7 @@ from typing import Any, Optional
 from microsoft_agents.activity import ActivityTypes
 from microsoft_agents.hosting.core import TurnContext
 
-from . import bridge, config, cs_client
+from . import bridge, config, dl
 from .state import ConvState
 
 
@@ -66,7 +66,23 @@ def _display_name(turn_context: TurnContext) -> Optional[str]:
 
 def _serialize_reference(turn_context: TurnContext) -> dict:
     """Best-effort ConversationReference serialization across SDK versions."""
-    ref = TurnContext.get_conversation_reference(turn_context.activity)
+    act = turn_context.activity
+    ref = None
+    getter = getattr(act, "get_conversation_reference", None)
+    if callable(getter):
+        try:
+            ref = getter()
+        except Exception:  # noqa: BLE001
+            ref = None
+    if ref is None:
+        getter = getattr(TurnContext, "get_conversation_reference", None)
+        if callable(getter):
+            try:
+                ref = getter(act)
+            except Exception:  # noqa: BLE001
+                ref = None
+    if ref is None:
+        return {}
     for fn in ("model_dump", "to_dict", "serialize", "dict"):
         m = getattr(ref, fn, None)
         if callable(m):
@@ -81,9 +97,13 @@ def _serialize_reference(turn_context: TurnContext) -> dict:
 # Per-turn entry point — called by app.py via AgentApplication routing
 # ---------------------------------------------------------------------------
 
-async def handle_turn(turn_context: TurnContext, conv_store: dict[str, Any]) -> None:
+async def handle_turn(turn_context: TurnContext, conv_store: dict[str, Any], cs_token: Optional[str] = None) -> None:
     """Single-route handler. `conv_store` is the per-conversation state dict
-    obtained from the SDK's IStorage / state accessor in app.py."""
+    obtained from the SDK's IStorage / state accessor in app.py.
+
+    `cs_token` is unused in Direct-Line parity mode (kept for signature
+    compatibility); CS auth is handled by the bridge's DL secret.
+    """
     state = ConvState(conv_store)
     text = (getattr(turn_context.activity, "text", "") or "").strip()
     act_type = (getattr(turn_context.activity, "type", "") or "").lower()
@@ -133,7 +153,7 @@ async def handle_turn(turn_context: TurnContext, conv_store: dict[str, Any]) -> 
             await bridge.send_user_message(sid, text)
         return
 
-    # bridge_state == "bot": proxy to Copilot Studio via CopilotClient.
+    # bridge_state == "bot": proxy to Copilot Studio via Direct Line.
     if act_type != ActivityTypes.message or not text:
         return
 
@@ -143,34 +163,18 @@ async def handle_turn(turn_context: TurnContext, conv_store: dict[str, Any]) -> 
 async def _proxy_to_copilot_studio(
     turn_context: TurnContext, state: ConvState, bridge_sid: Optional[str], text: str
 ) -> None:
-    token = cs_client.get_token_from_turn(turn_context, None)
-    if not token:
-        # Without an OBO token we can't talk to CS. Surface a helpful error
-        # rather than silently swallowing the turn.
+    if not bridge_sid:
         await turn_context.send_activity(
-            "Sign-in required to talk to the assistant. Please complete the "
-            "sign-in prompt and try again."
+            "Sorry, I can't reach the bridge right now. Please try again."
         )
         return
-
-    client = cs_client.make_client(token)
-    cs_convo_id = state.get_cs_conversation_id()
-
     try:
-        if not cs_convo_id:
-            # Start a new CS conversation for this user.
-            async for activity in client.start_conversation(emit_start_conversation_event=True):
-                await _dispatch_cs_activity(turn_context, state, bridge_sid, activity)
-                if getattr(activity, "conversation", None) and getattr(activity.conversation, "id", None):
-                    state.set_cs_conversation_id(activity.conversation.id)
-            cs_convo_id = state.get_cs_conversation_id()
-
-        # Forward this user turn.
-        if cs_convo_id:
-            async for activity in client.ask_question(text, cs_convo_id):
-                await _dispatch_cs_activity(turn_context, state, bridge_sid, activity)
+        await dl.post_user_text(bridge_sid, text)
+        activities = await dl.collect_bot_replies(bridge_sid)
+        for act in activities:
+            await _dispatch_cs_activity(turn_context, state, bridge_sid, act)
     except Exception:  # noqa: BLE001
-        _log.exception("CopilotClient proxy failed")
+        _log.exception("Direct Line proxy failed")
         await turn_context.send_activity(
             "Sorry, I'm having trouble reaching my brain right now. Please try again."
         )
@@ -182,22 +186,20 @@ async def _dispatch_cs_activity(
     bridge_sid: Optional[str],
     activity: Any,
 ) -> None:
-    a_type = getattr(activity, "type", None)
-    a_name = (getattr(activity, "name", "") or "")
+    # Direct Line returns raw dicts; access via dict.get.
+    a_type = activity.get("type") if isinstance(activity, dict) else getattr(activity, "type", None)
+    a_name = (activity.get("name") if isinstance(activity, dict) else getattr(activity, "name", "")) or ""
 
-    if a_type == ActivityTypes.message:
-        text_out = getattr(activity, "text", "") or ""
+    if a_type == "message":
+        text_out = (activity.get("text") if isinstance(activity, dict) else getattr(activity, "text", "")) or ""
         if text_out:
             await turn_context.send_activity(text_out)
         return
 
-    if a_type == ActivityTypes.event and a_name == config.COPILOTSTUDIO_HANDOFF_EVENT_NAME:
-        # Genesys-style escalation hook (Stage 2 — only fires if you've
-        # added an Event node to the CS Escalate topic). For Stage 1 this
-        # is a no-op when the legacy HTTP-action path is still wired.
+    if a_type == "event" and a_name == config.COPILOTSTUDIO_HANDOFF_EVENT_NAME:
         _log.info("CS handoff event received; triggering bridge escalation")
+        val = activity.get("value") if isinstance(activity, dict) else getattr(activity, "value", None)
         summary = ""
-        val = getattr(activity, "value", None)
         if isinstance(val, str):
             summary = val
         elif val is not None:
@@ -207,6 +209,6 @@ async def _dispatch_cs_activity(
         state.set_escalated(True)
         return
 
-    if a_type == ActivityTypes.end_of_conversation:
+    if a_type == "endOfConversation":
         state.set_cs_conversation_id(None)
         return
