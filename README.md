@@ -33,10 +33,12 @@ updates instantly.
 | [`docs/10-teams-channel-overview.md`](docs/10-teams-channel-overview.md) | Microsoft Teams channel architecture and design.    |
 | [`docs/11-teams-bot-setup.md`](docs/11-teams-bot-setup.md)       | Provisioning the Azure Bot, AAD app, and Teams manifest.     |
 | [`docs/12-teams-end-to-end-test.md`](docs/12-teams-end-to-end-test.md) | Sideload and validate the Teams relay end-to-end.       |
+| [`docs/13-teams-agent-setup.md`](docs/13-teams-agent-setup.md) | M365 Agents SDK port of the Teams relay (side-by-side cutover). |
 | `servicenow/`                                   | Three Scripted REST scripts to paste into ServiceNow.        |
 | `bridge/`                                       | Reference Flask bridge (`servicenow_bridge.py`).             |
 | `web/`                                          | Reference HTML page with the bot ↔ live agent state machine. |
-| `teams_bot/`                                    | Bot Framework relay that mirrors the web flow into Microsoft Teams. |
+| `teams_bot/`                                    | Legacy Bot Framework relay (deprecated SDK; kept for rollback). |
+| `teams_agent/`                                  | New M365 Agents SDK port of `teams_bot/` (Genesys-style handoff). |
 
 ## Quick start
 

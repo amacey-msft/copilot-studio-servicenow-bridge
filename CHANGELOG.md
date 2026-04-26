@@ -7,6 +7,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **`teams_agent/`**: M365 Agents SDK port of the Teams relay (Genesys-style
+  handoff). Runs side-by-side with the legacy `teams_bot/` so cutover and
+  rollback are flips of `TEAMS_PUSH_TARGET` (`legacy` / `agent` / `both`).
+  See [`docs/13-teams-agent-setup.md`](docs/13-teams-agent-setup.md). Tag
+  `pre-agents-sdk-refactor` marks the pre-refactor snapshot.
+- Bridge env-gated push dispatcher (`TEAMS_PUSH_TARGET`,
+  `TEAMS_AGENT_PUSH_URL`, `TEAMS_AGENT_PUSH_SECRET`).
+
+### Deprecated
+- `teams_bot/` (Bot Framework `botbuilder-python`). Will be removed once
+  parity with `teams_agent/` is validated end-to-end.
+
+### Added
 - **Microsoft Teams channel** as a first-class second front-end alongside
   the browser webchat. A new `teams_bot/` package adds a Bot Framework
   relay that proxies Teams 1:1 chats to the same Copilot Studio agent
