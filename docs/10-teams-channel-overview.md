@@ -3,6 +3,24 @@
 This document is the Teams-branch analogue of [`01-architecture.md`](01-architecture.md).
 The web channel architecture is unchanged; this is an additive front-end.
 
+## Two implementations
+
+There are **two parallel Teams implementations** in this repo. Pick one.
+
+| Folder | SDK | Setup doc | Status |
+| ------ | --- | --------- | ------ |
+| [`teams_agent/`](../teams_agent/) | **M365 Agents SDK** (`microsoft-agents-*` 0.9.x) | [`13-teams-agent-setup.md`](13-teams-agent-setup.md) | **Recommended** |
+| [`teams_bot/`](../teams_bot/) | Bot Framework (`botbuilder-python` 4.17.x) | [`11-teams-bot-setup.md`](11-teams-bot-setup.md) | Deprecated SDK; kept for rollback |
+
+The **bridge endpoints** and **ServiceNow setup** are identical for both.
+Only the Teams-facing process and its Azure Bot resource differ. The
+flow diagram below applies to either implementation; substitute
+`teams_bot/` ↔ `teams_agent/` in the box names.
+
+A bridge env var `TEAMS_PUSH_TARGET` (`legacy` / `agent` / `both`)
+chooses which implementation receives the proactive pushes from
+ServiceNow webhooks, so cutover is a single env flip.
+
 ## The flow
 
 ```

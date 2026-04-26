@@ -88,3 +88,36 @@ supported as of `microsoft-agents-copilotstudio-client` 0.9.0.
      and the bridge will push state via `/api/teams/push`.
 
 Detailed walkthrough lives in `docs/13-teams-agent-setup.md` (Stage 2).
+
+## User commands (chat-side)
+
+The agent intercepts these phrases **before** routing to Copilot Studio
+or the live-chat path. They work in any state (`bot`, `queued`, `live`,
+`closed`):
+
+| Phrase (case-insensitive) | Effect |
+| ------------------------- | ------ |
+| `new`, `new chat`, `start new chat` | Drop the bridge session, start a fresh bot conversation |
+| `reset`, `-reset` | Same as `new` |
+| `start over`, `restart` | Same as `new` |
+
+Implementation: `RESET_COMMANDS` in `agent.py`. The agent calls
+`POST /api/teams/reset-session` on the bridge, which removes the
+in-memory `BridgeSession` and its `teams_user_key` index entry. The
+SN-side `interaction` / `awa_work_item` records remain in SN as history.
+
+## Session auto-recycle
+
+Teams "Clear conversation" only clears the client. The bridge gets no
+signal it happened, so without recycling the next user turn would
+forward into a dead live-chat. The bridge auto-recycles a stale session
+on the next `/api/teams/init-session` call when:
+
+- `state == closed`, OR
+- `state == live` and idle &gt; `TEAMS_LIVE_IDLE_RECYCLE_S` (default **900s** / 15 min), OR
+- any non-`bot` state and idle &gt; `TEAMS_SESSION_IDLE_TIMEOUT_S` (default **3600s** / 1 hour)
+
+If a real user steps away mid-live-chat for &gt;15 min, their next message
+starts a fresh bot turn. Tell users to type `new` if they want to be
+explicit, or raise `TEAMS_LIVE_IDLE_RECYCLE_S` for longer-running CSR
+chats.

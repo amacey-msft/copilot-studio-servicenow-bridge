@@ -243,3 +243,69 @@ from CS and let the agent own the escalation API call.
 
 Until step 5 you can revert in seconds by flipping `TEAMS_PUSH_TARGET`
 back to `legacy`.
+
+## Behavior notes (gotchas baked into the implementation)
+
+These are documented here so you don't have to spelunk through the code
+to understand non-obvious behaviors.
+
+### Direct Line user-id mapping (Copilot Studio escalate tool)
+
+When the agent mints a Direct Line token from the Copilot Studio token
+endpoint, the token's `user` claim is the id Direct Line will rewrite
+`from.id` to on every user activity — and that's what CS exposes as
+`System.Activity.From.Id` inside topics. So when the CS Escalate HTTP
+tool sends `session_id = System.Activity.From.Id` to the bridge, the
+value is a CS-minted UUID, **not** any sid the bridge ever knows about.
+
+Fix: `teams_agent/dl.py` decodes the DL token JWT after each token
+mint, extracts the `user` claim, and registers the
+`dl_user_id -> sid` mapping with the bridge via
+`POST /api/teams/map-dl-user`. The bridge keeps an in-memory
+`_by_dl_user` reverse index and falls back to it when
+`/api/servicenow/agent/escalate` arrives with a sid the direct lookup
+can't resolve.
+
+### Live-state idle recycle
+
+Teams "Clear conversation" (the user's chat menu) is **client-only** —
+the bridge gets no signal it happened. Without a recycle, the user's
+next message would forward into a dead live-chat (the SN interaction
+the CSR walked away from) and you'd see nothing.
+
+The bridge auto-recycles a stale `live` session into a fresh `bot`
+session on the next `/api/teams/init-session` call when:
+
+- `state == closed`, OR
+- `state == live` and idle &gt; `TEAMS_LIVE_IDLE_RECYCLE_S` (default 900s
+  / 15 min), OR
+- any non-`bot` state and idle &gt; `TEAMS_SESSION_IDLE_TIMEOUT_S`
+  (default 3600s / 1 hour).
+
+Tune `TEAMS_LIVE_IDLE_RECYCLE_S` in `bridge/.env` for your CSR-chat
+duration. Users can always type `new` (or `reset`, `restart`) for an
+explicit reset; see [`teams_agent/README.md`](../teams_agent/README.md)
+"User commands".
+
+### Agent SDK message-route gotcha
+
+The first iteration of `teams_agent/app.py` used
+`@app.message(re.compile(".*"))` to catch all message activities.
+This silently fails to match text containing newlines (Python regex
+`.` doesn't match `\n` by default and the SDK doesn't add `re.DOTALL`).
+Switched to `@app.activity("message")` which dispatches every message
+activity unconditionally — keep it that way.
+
+### `BRIDGE_INTERNAL_URL` from inside a Docker container
+
+When the agent runs in Docker on the host's docker engine and the
+bridge runs *also* in Docker (compose) or on the host directly, set:
+
+```dotenv
+BRIDGE_INTERNAL_URL=http://host.docker.internal:5001
+```
+
+and pass `--add-host host.docker.internal:host-gateway` on
+`docker run` so Linux containers can resolve it. The
+`http://bridge:5000` form only works if both containers share the
+same compose network.
