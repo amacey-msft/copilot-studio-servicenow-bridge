@@ -138,6 +138,17 @@ async def messages(request: web.Request) -> web.Response:
     _log.info("[skill] inbound activity: auth_present=%s body_len=%d",
               bool(auth_header), len(raw))
 
+    # CS skill validator probes /api/messages during "Add a skill" and expects
+    # a Bot-Framework-shaped 401 with WWW-Authenticate when no JWT is present.
+    # Without this the validator reports "mismatch in your skill endpoints".
+    # We also enforce auth manually here because M365 Agents SDK 0.9.x does
+    # not gate /api/messages on JWT presence by default (see Phase 6 finding).
+    if not auth_header:
+        return web.Response(
+            status=401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     try:
         app_, adapter = _get_app_and_adapter()
     except Exception as exc:  # noqa: BLE001

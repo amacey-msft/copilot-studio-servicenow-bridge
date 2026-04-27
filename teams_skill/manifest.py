@@ -23,6 +23,12 @@ def build_manifest(public_url: str, ms_app_id: str) -> dict:
         ms_app_id: Azure Bot app reg id of THIS skill (not CS agent).
     """
     base = public_url.rstrip("/")
+    # CS skill validator (as of 2026-04) is stricter than the published BF v2.2
+    # spec. Concretely:
+    #   - rejects `definitions` blocks whose properties carry a `required` array
+    #     ("Definition required property is not supported")
+    #   - rejects `$ref` indirection in activity.value
+    # Inline the value schema and drop `required` to satisfy the validator.
     return {
         "$schema": "https://schemas.botframework.com/schemas/skills/v2.2/skill-manifest.json",
         "$id": "ServiceNowHandoffSkill",
@@ -45,22 +51,22 @@ def build_manifest(public_url: str, ms_app_id: str) -> dict:
                 "type": "event",
                 "name": "endConversation",
                 "value": {
-                    "$ref": "#/definitions/HandoffRequest"
+                    "type": "object",
+                    "properties": {
+                        "userEmail": {
+                            "type": "string",
+                            "description": "Teams user email for SN sys_user lookup.",
+                        },
+                        "initialQuery": {
+                            "type": "string",
+                            "description": "Last user message to seed the SN session.",
+                        },
+                    },
                 },
             },
             "sendMessage": {
                 "description": "Relay a message from the user to the live agent during an active handoff.",
                 "type": "message",
             },
-        },
-        "definitions": {
-            "HandoffRequest": {
-                "type": "object",
-                "properties": {
-                    "userEmail": {"type": "string", "description": "Teams user email for SN sys_user lookup."},
-                    "initialQuery": {"type": "string", "description": "Last user message to seed the SN session."},
-                },
-                "required": ["userEmail"],
-            }
         },
     }
