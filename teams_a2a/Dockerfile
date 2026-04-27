@@ -10,12 +10,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Install deps first for layer caching
-COPY teams_skill/requirements.txt /app/teams_skill/requirements.txt
-RUN pip install -r /app/teams_skill/requirements.txt
+COPY teams_a2a/requirements.txt /app/teams_a2a/requirements.txt
+RUN pip install -r /app/teams_a2a/requirements.txt
 
 # Copy package
-COPY teams_skill/ /app/teams_skill/
+COPY teams_a2a/ /app/teams_a2a/
 
 EXPOSE 3979
 
-CMD ["python", "-m", "teams_skill.app"]
+CMD ["python", "-m", "teams_a2a.app"]

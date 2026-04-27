@@ -75,7 +75,7 @@ Inbound activity from CS to the skill works (CS *does* mint a token
 with `aud=<skillAppId>`). The 401 surfaces on the **callback**:
 
 ```text
-ERROR teams_skill.app skill process failed: 401, message='Unauthorized',
+ERROR teams_a2a.app skill process failed: 401, message='Unauthorized',
 url='https://pvaruntime.us-il102.gateway.prod.island.powerapps.com/api/runtime/
 bots/308bbcd1-.../skillsV2/v3/conversations/.../activities'
 ```
@@ -111,21 +111,21 @@ Properties:
   `pvaruntime/skillsV2`. The 401 root cause does not exist in this
   pattern.
 - Auth is a single classic app reg + secret on the connector side
-  (ours: `SKILL_APP_ID` / `SKILL_APP_PASSWORD`). CS configures it via
+  (ours: `A2A_APP_ID` / `A2A_APP_PASSWORD`). CS configures it via
   the "Connection string" credential blade.
 - Async rep replies from ServiceNow are **buffered** in
   `ActiveHandoff.pending_replies` (a `deque` in
-  [teams_skill/state.py](../teams_skill/state.py)) and drained on the
+  [teams_a2a/state.py](../teams_a2a/state.py)) and drained on the
   next user turn. There is no proactive push because A2A is
   request/response.
 
 ## What was kept / what was cut
 
 - **Kept:** Backing infrastructure — ACA app `ca-cps-sn-skill`, ACR
-  `acrcpvb0c139ea`, `SKILL_APP_ID`/`SKILL_APP_PASSWORD`, ServiceNow
-  client (`teams_skill/sn_client.py`), webhook endpoint
+  `acrcpvb0c139ea`, `A2A_APP_ID`/`A2A_APP_PASSWORD`, ServiceNow
+  client (`teams_a2a/sn_client.py`), webhook endpoint
   (`/api/sn-webhook`), state store.
-- **Cut:** Skill manifest (`teams_skill/manifest.py` + `manifest()`
+- **Cut:** Skill manifest (`teams_a2a/manifest.py` + `manifest()`
   route + `/skill-manifest.json`), `_push_to_cs()`,
   `continue_conversation_with_claims` calls, `CS_PARENT_APP_ID` env,
   inbound JWT diagnostic block.
@@ -145,8 +145,8 @@ agent** → **Microsoft 365 Agents SDK**:
 | Description      | `Use when the user asks to talk to a person, escalate to a human, get a ticket created in ServiceNow, or wants live support.` |
 | Connection auth  | Client secret                                                               |
 | Tenant ID        | `19e783ae-da17-4c69-8118-d15b80b10d3b`                                      |
-| Client ID        | `SKILL_APP_ID` (from ACA env)                                               |
-| Client secret    | `SKILL_APP_PASSWORD` (from ACA env)                                         |
+| Client ID        | `A2A_APP_ID` (from ACA env)                                               |
+| Client secret    | `A2A_APP_PASSWORD` (from ACA env)                                         |
 
 Publish, retest in Teams.
 

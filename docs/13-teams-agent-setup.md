@@ -6,7 +6,7 @@ Direct Line and pushes ServiceNow CSR replies into the same Teams
 conversation via `adapter.continue_conversation`. This is one of two
 Teams channels in the repo — see
 [`10-teams-channel-overview.md`](10-teams-channel-overview.md) for the
-difference between this and `teams_skill/` (the A2A path).
+difference between this and `teams_a2a/` (the A2A path).
 
 It uses the supported [Microsoft 365 Agents SDK](https://github.com/microsoft/Agents)
 (`microsoft-agents-*`); the older `botbuilder-python`-based

@@ -32,12 +32,12 @@ updates instantly.
 | [`docs/09-production-hardening.md`](docs/09-production-hardening.md) | Checklist before promoting beyond a dev PDI.             |
 | [`docs/10-teams-channel-overview.md`](docs/10-teams-channel-overview.md) | Microsoft Teams channel architecture and design.    |
 | [`docs/13-teams-agent-setup.md`](docs/13-teams-agent-setup.md) | Teams via M365 Agents SDK Genesys-style handoff (`teams_agent/`).      |
-| [`docs/14-teams-skill-setup.md`](docs/14-teams-skill-setup.md) | Teams via Copilot Studio A2A “Add an agent” connector (`teams_skill/`). |
+| [`docs/14-teams-a2a-setup.md`](docs/14-teams-a2a-setup.md) | Teams via Copilot Studio A2A “Add an agent” connector (`teams_a2a/`). |
 | `servicenow/`                                   | Three Scripted REST scripts to paste into ServiceNow.        |
 | `bridge/`                                       | Reference Flask bridge (`servicenow_bridge.py`).             |
 | `web/`                                          | Reference HTML page with the bot ↔ live agent state machine. |
 | `teams_agent/`                                  | Teams relay built on the M365 Agents SDK (Genesys-style proactive push). |
-| `teams_skill/`                                  | Teams relay registered with Copilot Studio as an A2A agent (request/response + proactive push). |
+| `teams_a2a/`                                  | Teams relay registered with Copilot Studio as an A2A agent (request/response + proactive push). |
 
 ## Quick start
 

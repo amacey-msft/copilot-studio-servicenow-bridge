@@ -3,7 +3,7 @@
 This is a **second, independent** Business Rule that runs alongside the
 existing `outbound_business_rule.md` BR. It posts every CSR message to
 the v3 skill's webhook (`/api/sn-webhook` on the ACA-hosted
-`teams_skill`) so handoffs that originated in the new Copilot Studio
+`teams_a2a`) so handoffs that originated in the new Copilot Studio
 agent get the rep's reply.
 
 The original bridge BR is **not modified**. Both BRs fire on every

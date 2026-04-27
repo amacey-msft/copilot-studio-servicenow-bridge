@@ -1,11 +1,11 @@
-# teams_skill/
+# teams_a2a/
 
 A Microsoft 365 Agents SDK service that registers with Copilot Studio
 as an **A2A** ("Add an agent → Microsoft 365 Agents SDK") sub-agent
 and brokers a ServiceNow live-chat handoff on behalf of the parent CS
 agent.
 
-See [`docs/14-teams-skill-setup.md`](../docs/14-teams-skill-setup.md)
+See [`docs/14-teams-a2a-setup.md`](../docs/14-teams-a2a-setup.md)
 for setup, [`docs/10-teams-channel-overview.md`](../docs/10-teams-channel-overview.md)
 for how this fits with the other channels, and
 [`docs/v3-skill-pattern-rejected.md`](../docs/v3-skill-pattern-rejected.md)
@@ -15,7 +15,7 @@ favour of A2A.
 ## Pattern
 
 ```
-user ---> Copilot Studio orchestrator ---(A2A dispatch)---> teams_skill /api/messages
+user ---> Copilot Studio orchestrator ---(A2A dispatch)---> teams_a2a /api/messages
                                                                   |
                                                                   v
                                                              bridge (Flask)
@@ -50,9 +50,9 @@ back to CS.
 
 ## Required env
 
-See [`docs/14-teams-skill-setup.md`](../docs/14-teams-skill-setup.md#2-configure-teams_skill-env)
-for the full list. At minimum: `SKILL_APP_ID`, `SKILL_APP_PASSWORD`,
-`SKILL_TENANT_ID`, `SKILL_PUBLIC_URL`, `BRIDGE_INTERNAL_URL`,
+See [`docs/14-teams-a2a-setup.md`](../docs/14-teams-a2a-setup.md#2-configure-teams_a2a-env)
+for the full list. At minimum: `A2A_APP_ID`, `A2A_APP_PASSWORD`,
+`A2A_TENANT_ID`, `A2A_PUBLIC_URL`, `BRIDGE_INTERNAL_URL`,
 `SN_WEBHOOK_SECRET`.
 
 ## Status

@@ -1,4 +1,4 @@
-# Deploy teams_skill (v3 spike) to Azure Container Apps.
+# Deploy teams_a2a (v3 spike) to Azure Container Apps.
 #
 # Reuse existing ACA environment + ACR from the rg-cpv-aca resource group.
 # Skill app name: ca-cps-sn-skill.
@@ -8,7 +8,7 @@
 #   ./scripts/deploy-skill-aca.ps1 -SkipBuild       # update existing image only
 #
 # Env vars (must be set or passed):
-#   SKILL_APP_ID, SKILL_APP_PASSWORD, SKILL_TENANT_ID, CS_PARENT_APP_ID
+#   A2A_APP_ID, A2A_APP_PASSWORD, A2A_TENANT_ID, CS_PARENT_APP_ID
 #   (provide AFTER Phase 3 — for Phase 2 first deploy, fakes are fine; the
 #    /healthz route does not need them and lazy-init defers AAD use.)
 
@@ -17,7 +17,7 @@ param(
     [string]$AcaEnv        = 'cae-cpv',
     [string]$Acr           = 'acrcpvb0c139ea',
     [string]$AppName       = 'ca-cps-sn-skill',
-    [string]$Image         = 'teams-skill',
+    [string]$Image         = 'teams-a2a',
     [switch]$SkipBuild
 )
 
@@ -39,7 +39,7 @@ try {
             --registry $Acr `
             --image "${Image}:$tag" `
             --image "${Image}:latest" `
-            --file teams_skill/Dockerfile `
+            --file teams_a2a/Dockerfile `
             --no-logs `
             . | Out-Host
         if ($LASTEXITCODE -ne 0) { Write-Host "acr build failed exit=$LASTEXITCODE" -ForegroundColor Red; exit 1 }
@@ -54,9 +54,9 @@ try {
     }
 
     # Source env values (allow caller to override via real env)
-    $skillAppId   = $env:SKILL_APP_ID;        if (-not $skillAppId)   { $skillAppId   = '00000000-0000-0000-0000-000000000000' }
-    $skillSecret  = $env:SKILL_APP_PASSWORD;  if (-not $skillSecret)  { $skillSecret  = 'placeholder' }
-    $skillTenant  = $env:SKILL_TENANT_ID;     if (-not $skillTenant)  { $skillTenant  = '00000000-0000-0000-0000-000000000000' }
+    $skillAppId   = $env:A2A_APP_ID;        if (-not $skillAppId)   { $skillAppId   = '00000000-0000-0000-0000-000000000000' }
+    $skillSecret  = $env:A2A_APP_PASSWORD;  if (-not $skillSecret)  { $skillSecret  = 'placeholder' }
+    $skillTenant  = $env:A2A_TENANT_ID;     if (-not $skillTenant)  { $skillTenant  = '00000000-0000-0000-0000-000000000000' }
     $csParentId   = $env:CS_PARENT_APP_ID;    if (-not $csParentId)   { $csParentId   = '00000000-0000-0000-0000-000000000000' }
     # ServiceNow connection (mirrors bridge/.env). Required for the
     # endConversation handler to actually open a live-agent chat.
@@ -89,11 +89,11 @@ try {
             --registry-password (az acr credential show -n $Acr --query passwords[0].value -o tsv) `
             --secrets "skill-app-password=$skillSecret" "sn-password=$snPassword" "sn-webhook-secret=$snWhSecret" `
             --env-vars `
-                "SKILL_APP_ID=$skillAppId" `
-                "SKILL_APP_PASSWORD=secretref:skill-app-password" `
-                "SKILL_TENANT_ID=$skillTenant" `
+                "A2A_APP_ID=$skillAppId" `
+                "A2A_APP_PASSWORD=secretref:skill-app-password" `
+                "A2A_TENANT_ID=$skillTenant" `
                 "CS_PARENT_APP_ID=$csParentId" `
-                "SKILL_PUBLIC_URL=https://placeholder" `
+                "A2A_PUBLIC_URL=https://placeholder" `
                 "SN_INSTANCE=$snInstance" `
                 "SN_USER=$snUser" `
                 "SN_PASSWORD=secretref:sn-password" `
@@ -112,9 +112,9 @@ try {
             --image $fullImage `
             --revision-suffix $tag `
             --set-env-vars `
-                "SKILL_APP_ID=$skillAppId" `
-                "SKILL_APP_PASSWORD=secretref:skill-app-password" `
-                "SKILL_TENANT_ID=$skillTenant" `
+                "A2A_APP_ID=$skillAppId" `
+                "A2A_APP_PASSWORD=secretref:skill-app-password" `
+                "A2A_TENANT_ID=$skillTenant" `
                 "CS_PARENT_APP_ID=$csParentId" `
                 "SN_INSTANCE=$snInstance" `
                 "SN_USER=$snUser" `
@@ -128,11 +128,11 @@ try {
     $publicUrl = "https://$fqdn"
     Write-Host "==> Public URL: $publicUrl" -ForegroundColor Green
 
-    # Patch SKILL_PUBLIC_URL with real FQDN so manifest reports correctly
+    # Patch A2A_PUBLIC_URL with real FQDN so manifest reports correctly
     az containerapp update `
         --name $AppName `
         --resource-group $ResourceGroup `
-        --set-env-vars "SKILL_PUBLIC_URL=$publicUrl" | Out-Null
+        --set-env-vars "A2A_PUBLIC_URL=$publicUrl" | Out-Null
 
     # Verify health
     Write-Host "==> Health check (may take ~30s for cold start)..." -ForegroundColor Cyan

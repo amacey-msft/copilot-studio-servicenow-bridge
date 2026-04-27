@@ -8,7 +8,7 @@ pushes ServiceNow CSR replies into the same Teams chat via
 
 This is one of two Teams channels in the repo. See
 [`docs/10-teams-channel-overview.md`](../docs/10-teams-channel-overview.md)
-for how it compares to `teams_skill/` (the A2A path), and for why the
+for how it compares to `teams_a2a/` (the A2A path), and for why the
 older `teams_bot/` (Bot Framework `botbuilder-python`) implementation
 was removed.
 

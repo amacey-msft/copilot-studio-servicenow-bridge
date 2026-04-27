@@ -29,20 +29,20 @@ from datetime import datetime, timezone
 import msal
 
 
-SKILL_APP_ID = os.environ["SKILL_APP_ID"]
-SKILL_APP_PASSWORD = os.environ["SKILL_APP_PASSWORD"]
-SKILL_TENANT_ID = os.environ["SKILL_TENANT_ID"]
-SKILL_PUBLIC_URL = os.environ["SKILL_PUBLIC_URL"]
+A2A_APP_ID = os.environ["A2A_APP_ID"]
+A2A_APP_PASSWORD = os.environ["A2A_APP_PASSWORD"]
+A2A_TENANT_ID = os.environ["A2A_TENANT_ID"]
+A2A_PUBLIC_URL = os.environ["A2A_PUBLIC_URL"]
 
 
 def get_token() -> str:
     app = msal.ConfidentialClientApplication(
-        client_id=SKILL_APP_ID,
-        client_credential=SKILL_APP_PASSWORD,
-        authority=f"https://login.microsoftonline.com/{SKILL_TENANT_ID}",
+        client_id=A2A_APP_ID,
+        client_credential=A2A_APP_PASSWORD,
+        authority=f"https://login.microsoftonline.com/{A2A_TENANT_ID}",
     )
     # Bot Framework v3 auth: scope is the caller-target's app id /.default
-    scope = f"{SKILL_APP_ID}/.default"
+    scope = f"{A2A_APP_ID}/.default"
     res = app.acquire_token_for_client(scopes=[scope])
     if "access_token" not in res:
         print(f"[ERR] token acquire failed: {res}")
@@ -67,7 +67,7 @@ def make_activity(name: str = "endConversation") -> dict:
             "id": str(uuid.uuid4()),
         },
         "recipient": {
-            "id": SKILL_APP_ID,
+            "id": A2A_APP_ID,
             "role": "skill",
         },
         "value": {
@@ -95,7 +95,7 @@ def post(url: str, body: dict, headers: dict) -> tuple[int, str]:
 
 
 def main() -> int:
-    url = f"{SKILL_PUBLIC_URL.rstrip('/')}/api/messages"
+    url = f"{A2A_PUBLIC_URL.rstrip('/')}/api/messages"
     activity = make_activity()
     print(f"\n==> Target: {url}")
 

@@ -13,14 +13,18 @@ Flow:
     (synchronous A2A response). No proactive push.
 
 Run:
-    python -m teams_skill.app
+    python -m teams_a2a.app
 
-Env (read from process env or teams_skill/.env):
-    SKILL_APP_ID         Azure Bot app reg id for THIS agent
-    SKILL_APP_PASSWORD   client secret for SKILL_APP_ID
-    SKILL_TENANT_ID      tenant id (SingleTenant)
-    SKILL_PUBLIC_URL     https URL the agent is reachable at
+Env (read from process env or teams_a2a/.env):
+    A2A_APP_ID           Azure Bot app reg id for THIS agent
+    A2A_APP_PASSWORD     client secret for A2A_APP_ID
+    A2A_TENANT_ID        tenant id (SingleTenant)
+    A2A_PUBLIC_URL       https URL the agent is reachable at
     PORT                 default 3979
+
+    Legacy names SKILL_APP_ID / SKILL_APP_PASSWORD / SKILL_TENANT_ID /
+    SKILL_PUBLIC_URL are still honored as a fallback so the deployed
+    ACA revision keeps working through the rename.
 """
 from __future__ import annotations
 
@@ -86,13 +90,22 @@ logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
-_log = logging.getLogger("teams_skill.app")
+_log = logging.getLogger("teams_a2a.app")
 
 
-SKILL_APP_ID = os.environ.get("SKILL_APP_ID", "")
-SKILL_APP_PASSWORD = os.environ.get("SKILL_APP_PASSWORD", "")
-SKILL_TENANT_ID = os.environ.get("SKILL_TENANT_ID", "")
-SKILL_PUBLIC_URL = os.environ.get("SKILL_PUBLIC_URL", "http://localhost:3979")
+def _env(*names: str, default: str = "") -> str:
+    """Return the first non-empty value among ``names`` from the process env."""
+    for n in names:
+        v = os.environ.get(n)
+        if v:
+            return v
+    return default
+
+
+A2A_APP_ID = _env("A2A_APP_ID", "SKILL_APP_ID")
+A2A_APP_PASSWORD = _env("A2A_APP_PASSWORD", "SKILL_APP_PASSWORD")
+A2A_TENANT_ID = _env("A2A_TENANT_ID", "SKILL_TENANT_ID")
+A2A_PUBLIC_URL = _env("A2A_PUBLIC_URL", "SKILL_PUBLIC_URL", default="http://localhost:3979")
 # Shared secret for the inbound SN BR webhook -> /api/sn-webhook.
 SN_WEBHOOK_SECRET = os.environ.get("SN_WEBHOOK_SECRET", "")
 PORT = int(os.environ.get("PORT", "3979"))
@@ -122,9 +135,9 @@ def _build_app_and_adapter():
 
     service_cfg = AgentAuthConfiguration(
         auth_type=AuthTypes.client_secret,
-        client_id=SKILL_APP_ID,
-        client_secret=SKILL_APP_PASSWORD,
-        tenant_id=SKILL_TENANT_ID,
+        client_id=A2A_APP_ID,
+        client_secret=A2A_APP_PASSWORD,
+        tenant_id=A2A_TENANT_ID,
         connection_name="SERVICE_CONNECTION",
     )
     cm = MsalConnectionManager(
@@ -137,7 +150,7 @@ def _build_app_and_adapter():
     app = AgentApplication(
         options=ApplicationOptions(
             adapter=adapter,
-            bot_app_id=SKILL_APP_ID,
+            bot_app_id=A2A_APP_ID,
             storage=storage,
         ),
         connection_manager=cm,
@@ -417,9 +430,9 @@ async def healthz(request: web.Request) -> web.Response:
     return web.json_response({
         "ok": True,
         "mode": "a2a",
-        "skill_app_id_set": bool(SKILL_APP_ID),
+        "a2a_app_id_set": bool(A2A_APP_ID),
         "sn_webhook_secret_set": bool(SN_WEBHOOK_SECRET),
-        "public_url": SKILL_PUBLIC_URL,
+        "public_url": A2A_PUBLIC_URL,
     })
 
 

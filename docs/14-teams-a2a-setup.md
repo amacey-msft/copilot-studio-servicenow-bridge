@@ -1,6 +1,6 @@
 # 14 - Teams skill setup (Copilot Studio A2A "Add an agent" connector)
 
-This guide stands up the [`teams_skill/`](../teams_skill/) service and
+This guide stands up the [`teams_a2a/`](../teams_a2a/) service and
 registers it with a Copilot Studio agent as an **A2A** ("Add an agent →
 Microsoft 365 Agents SDK") sub-agent. End state: a user chatting with
 the CS agent in Teams (CS's native channel) can ask to "talk to a
@@ -13,7 +13,7 @@ ServiceNow live chat and round-trips messages.
 
 ## What stays untouched
 
-- `bridge/` Flask code: `teams_skill/` calls the same
+- `bridge/` Flask code: `teams_a2a/` calls the same
   `/api/servicenow/agent/escalate` and `/api/servicenow/user-message`
   endpoints the web channel uses.
 - `web/` browser webchat.
@@ -43,23 +43,23 @@ the classic shape):
 $tenant = "<your tenant guid>"
 $app = az ad app create --display-name cps-sn-skill --sign-in-audience AzureADMyOrg | ConvertFrom-Json
 $secret = az ad app credential reset --id $app.appId --years 2 | ConvertFrom-Json
-"SKILL_APP_ID=$($app.appId)"
-"SKILL_APP_PASSWORD=$($secret.password)"
-"SKILL_TENANT_ID=$tenant"
+"A2A_APP_ID=$($app.appId)"
+"A2A_APP_PASSWORD=$($secret.password)"
+"A2A_TENANT_ID=$tenant"
 ```
 
 No API permissions, no Azure Bot resource, no Teams app manifest —
 none of that is needed because **CS owns the Teams surface**.
 
-## 2. Configure `teams_skill/` env
+## 2. Configure `teams_a2a/` env
 
 Required:
 
 ```dotenv
-SKILL_APP_ID=<from step 1>
-SKILL_APP_PASSWORD=<from step 1>
-SKILL_TENANT_ID=<from step 1>
-SKILL_PUBLIC_URL=https://<your-host>          # public HTTPS base URL
+A2A_APP_ID=<from step 1>
+A2A_APP_PASSWORD=<from step 1>
+A2A_TENANT_ID=<from step 1>
+A2A_PUBLIC_URL=https://<your-host>          # public HTTPS base URL
 BRIDGE_INTERNAL_URL=https://<your-bridge-host> # bridge reachable from this process
 SN_WEBHOOK_SECRET=<long random string>         # shared with the SN BR
 PORT=3979
@@ -72,11 +72,11 @@ The repo's reference deployment is Azure Container Apps. Build + push
 via ACR:
 
 ```powershell
-az acr build --registry <acr-name> --image teams-skill:latest `
-    --file teams_skill/Dockerfile .
+az acr build --registry <acr-name> --image teams-a2a:latest `
+    --file teams_a2a/Dockerfile .
 
 az containerapp update -n ca-cps-sn-skill -g <rg> `
-    --image <acr-name>.azurecr.io/teams-skill:latest `
+    --image <acr-name>.azurecr.io/teams-a2a:latest `
     --revision-suffix vMMDDHHMM
 ```
 
@@ -105,9 +105,9 @@ In CS Studio, open the parent agent → **Agents** tab → **Add an agent**
 | Name             | `ServiceNow Live Agent` (or whatever; user-visible in CS overview only)     |
 | Description      | Natural-language description of WHEN to dispatch — see note below.          |
 | Connection auth  | Client secret                                                               |
-| Tenant ID        | `SKILL_TENANT_ID`                                                           |
-| Client ID        | `SKILL_APP_ID`                                                              |
-| Client secret    | `SKILL_APP_PASSWORD`                                                        |
+| Tenant ID        | `A2A_TENANT_ID`                                                           |
+| Client ID        | `A2A_APP_ID`                                                              |
+| Client secret    | `A2A_APP_PASSWORD`                                                        |
 
 **Description matters.** This is what the CS orchestrator's LLM reads
 to decide whether to dispatch the current turn to your agent. Be
@@ -162,7 +162,7 @@ an empty `200 OK` body and no `Content-Type` header. The default
 `microsoft-agents-*` connector tries to JSON-decode the body and
 raises `aiohttp.ContentTypeError`. We monkey-patch the connector's
 response handler to tolerate empty 200s. See `_patch_mcs_connector()`
-in [`teams_skill/app.py`](../teams_skill/app.py).
+in [`teams_a2a/app.py`](../teams_a2a/app.py).
 
 ### User identity
 

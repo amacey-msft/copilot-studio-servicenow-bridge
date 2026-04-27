@@ -20,7 +20,7 @@ from typing import Any
 import requests
 
 
-_log = logging.getLogger("teams_skill.sn_client")
+_log = logging.getLogger("teams_a2a.sn_client")
 
 
 SN_INSTANCE = (os.environ.get("SN_INSTANCE") or "").rstrip("/")

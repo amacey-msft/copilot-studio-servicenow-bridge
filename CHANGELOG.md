@@ -7,12 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- **`teams_skill/`**: third channel built on the Microsoft 365 Agents
+- **`teams_a2a/`**: third channel built on the Microsoft 365 Agents
   SDK and registered with Copilot Studio via the **A2A "Add an agent"**
   connector. CS dispatches turns to the skill based on a natural-language
   agent description; the skill replies synchronously and proactively
   pushes ServiceNow CSR messages back to the signed CS `serviceUrl`.
-  See [`docs/14-teams-skill-setup.md`](docs/14-teams-skill-setup.md)
+  See [`docs/14-teams-a2a-setup.md`](docs/14-teams-a2a-setup.md)
   and [`docs/v3-skill-pattern-rejected.md`](docs/v3-skill-pattern-rejected.md)
   for why the classic Bot Framework skill protocol was abandoned in
   favour of A2A.
@@ -41,7 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Microsoft put `botbuilder-python` into maintenance mode and replaced it
   with `microsoft-agents-*`; once `teams_agent/` reached parity, keeping
   the legacy SDK around only added cutover knobs and contributor
-  confusion. Both surviving Teams channels (`teams_agent/`, `teams_skill/`)
+  confusion. Both surviving Teams channels (`teams_agent/`, `teams_a2a/`)
   use the supported Agents SDK. See
   [`docs/10-teams-channel-overview.md`](docs/10-teams-channel-overview.md)
   for the full rationale.
@@ -54,7 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `@app.activity("message")` so every message activity is dispatched.
 - A2A connector raised `aiohttp.ContentTypeError` on Copilot Studio's
   empty 200 ack to proactive POSTs. Monkey-patched in
-  `teams_skill/app.py::_patch_mcs_connector()`.
+  `teams_a2a/app.py::_patch_mcs_connector()`.
 
 ### Added
 - `BRIDGE_PUBLIC_URL` env var (in `bridge/.env`) is now the single source

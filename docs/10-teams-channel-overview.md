@@ -14,7 +14,7 @@ talk to the same bridge (`bridge/`) and the same ServiceNow setup
 | ------ | ------- | ------------- | --------- |
 | [`web/`](../web/) + [`bridge/`](../bridge/) | Browser webchat | BotFramework WebChat against Copilot Studio Direct Line | [`05-browser-webchat.md`](05-browser-webchat.md) |
 | [`teams_agent/`](../teams_agent/) | Microsoft Teams (1:1) | **M365 Agents SDK**, Genesys-style server-side handoff | [`13-teams-agent-setup.md`](13-teams-agent-setup.md) |
-| [`teams_skill/`](../teams_skill/) | Microsoft Teams (1:1) via Copilot Studio | **M365 Agents SDK** registered with Copilot Studio as an **A2A agent** ("Add an agent" connector) | [`14-teams-skill-setup.md`](14-teams-skill-setup.md) |
+| [`teams_a2a/`](../teams_a2a/) | Microsoft Teams (1:1) via Copilot Studio | **M365 Agents SDK** registered with Copilot Studio as an **A2A agent** ("Add an agent" connector) | [`14-teams-a2a-setup.md`](14-teams-a2a-setup.md) |
 
 > A previous `teams_bot/` folder built on `botbuilder-python` 4.17.x
 > was removed in v3 because Microsoft put that SDK into maintenance
@@ -34,7 +34,7 @@ CS agent and hand off to a live ServiceNow CSR" — at two different
   replies into the same Teams 1:1 chat via
   `adapter.continue_conversation`.
 
-- **`teams_skill/` is Copilot-Studio-first.** The user already chats
+- **`teams_a2a/` is Copilot-Studio-first.** The user already chats
   with a Copilot Studio agent (in Teams via CS's own channel, or
   anywhere CS is reachable). When the CS orchestrator decides the
   user wants a human, it dispatches the activity to our process via
@@ -124,7 +124,7 @@ user as a separately addressable thing.
 Copilot Studio should be a backend cognition engine. The user never
 needs to see "Copilot Studio" anywhere.
 
-### Teams via Copilot Studio A2A (`teams_skill/`)
+### Teams via Copilot Studio A2A (`teams_a2a/`)
 
 ```
 +----------------------+    (1) user chats CS agent    +--------------------+
@@ -137,9 +137,9 @@ needs to see "Copilot Studio" anywhere.
                                   (description-based dispatch)   |
                                                                  v
 +--------------------------------------------------------------------+
-| teams_skill/ (microsoft-agents-hosting-aiohttp, AgentApplication)  |
+| teams_a2a/ (microsoft-agents-hosting-aiohttp, AgentApplication)  |
 |   POST /api/messages  -- inbound from CS A2A connector             |
-|   - validates JWT (audience = SKILL_APP_ID)                        |
+|   - validates JWT (audience = A2A_APP_ID)                        |
 |   - synchronous reply on the same turn                             |
 |   - records signed serviceUrl for later proactive push             |
 |   - calls bridge for escalate / user-message                       |
@@ -153,7 +153,7 @@ needs to see "Copilot Studio" anywhere.
            ^                  |  reply to the user)|
            |                  +--------------------+
    sys_cs_message BR
-   (SN -> bridge webhook -> teams_skill /api/sn-webhook)
+   (SN -> bridge webhook -> teams_a2a /api/sn-webhook)
 ```
 
 **Key property.** The user never sees our agent. They chat with the
@@ -168,7 +168,7 @@ it in your own bot.
 
 ## Comparison
 
-| Concern | `teams_agent/` (Genesys-style) | `teams_skill/` (A2A) |
+| Concern | `teams_agent/` (Genesys-style) | `teams_a2a/` (A2A) |
 | ------- | ------------------------------ | -------------------- |
 | Who owns the Teams app | Our agent (Azure Bot) | Copilot Studio (its native channel) |
 | Inbound transport | Bot Framework / Teams channel | A2A connector from CS |
@@ -200,7 +200,7 @@ it in your own bot.
    `botbuilder.core` between minor releases. Bumping the SDK was
    historically painful.
 4. **No first-class A2A.** The A2A "Add an agent" path that
-   `teams_skill/` uses requires the M365 Agents SDK; the BF SDK has
+   `teams_a2a/` uses requires the M365 Agents SDK; the BF SDK has
    no equivalent integration.
 5. **One implementation per SDK is enough.** Once `teams_agent/`
    reached parity, keeping `teams_bot/` only added cutover knobs,
@@ -224,7 +224,7 @@ removed.
 
 | State    | What the user sees                                       | Where their input goes                |
 | -------- | -------------------------------------------------------- | ------------------------------------- |
-| `bot`    | Replies authored by the Copilot Studio agent.            | Direct Line (web, `teams_agent/`) or A2A inbound (`teams_skill/`) |
+| `bot`    | Replies authored by the Copilot Studio agent.            | Direct Line (web, `teams_agent/`) or A2A inbound (`teams_a2a/`) |
 | `queued` | "Connecting an agent..." + IMS#                          | Suppressed (canned reply)             |
 | `live`   | "You're now chatting with `<rep>`", then plain replies prefixed with rep name | `POST /api/servicenow/user-message` |
 | `closed` | "This chat has ended." Type **new** to reset.            | Suppressed                            |
@@ -239,7 +239,7 @@ Table API
   test email is hard-coded for local dev).
 - **`teams_agent/`:** the AAD `userPrincipalName` from the Teams
   activity's `from.aadObjectId` is resolved.
-- **`teams_skill/`:** the email from `from.email` / `channelData` on
+- **`teams_a2a/`:** the email from `from.email` / `channelData` on
   the inbound A2A activity is resolved.
 
 In all three cases, if no SN user matches, the bridge falls back to a
