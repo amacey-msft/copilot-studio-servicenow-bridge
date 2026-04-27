@@ -1,0 +1,6 @@
+# Reuse teams_agent venv — same SDK packages.
+microsoft-agents-activity>=0.9.0
+microsoft-agents-hosting-core>=0.9.0
+microsoft-agents-hosting-aiohttp>=0.9.0
+microsoft-agents-authentication-msal>=0.9.0
+aiohttp>=3.9
