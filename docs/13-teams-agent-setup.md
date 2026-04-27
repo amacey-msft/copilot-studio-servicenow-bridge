@@ -1,31 +1,33 @@
-# 13 - Teams agent setup (M365 Agents SDK port)
+# 13 - Teams agent setup (M365 Agents SDK, Genesys-style)
 
-This guide stands up the new `teams_agent/` service alongside the existing
-`teams_bot/` relay so both can run in parallel during cutover. The new
-service uses the supported [Microsoft 365 Agents SDK](https://github.com/microsoft/Agents)
-in place of the deprecated `botbuilder-python` packages.
+This guide stands up the [`teams_agent/`](../teams_agent/) service: a
+Microsoft Teams 1:1 bot that proxies turns to Copilot Studio over
+Direct Line and pushes ServiceNow CSR replies into the same Teams
+conversation via `adapter.continue_conversation`. This is one of two
+Teams channels in the repo — see
+[`10-teams-channel-overview.md`](10-teams-channel-overview.md) for the
+difference between this and `teams_skill/` (the A2A path).
+
+It uses the supported [Microsoft 365 Agents SDK](https://github.com/microsoft/Agents)
+(`microsoft-agents-*`); the older `botbuilder-python`-based
+`teams_bot/` was removed in v3.
 
 > **Read first:** [`teams_agent/README.md`](../teams_agent/README.md) for
-> a high-level summary of why this exists and what changes from the
-> legacy `teams_bot/`.
+> a high-level summary of why this exists and the design decisions.
 
 ## What stays untouched
 
-- `teams_bot/` keeps running on its own bot id / app id / Teams app id
-- `bridge/` Flask code: only added a new env-gated push target
-  (`TEAMS_PUSH_TARGET`); default is `legacy` so behavior is unchanged
-- `web/` browser webchat
-- `servicenow/` AWA queue, business rule, scripted REST
+- `bridge/` Flask code: this channel uses the
+  `TEAMS_AGENT_PUSH_URL` / `TEAMS_AGENT_PUSH_SECRET` env vars on the
+  bridge to receive proactive push requests.
+- `web/` browser webchat.
+- `servicenow/` AWA queue, business rule, scripted REST.
 
-## Rollback at any point
+## Rollback
 
-```powershell
-# Tag set before any of this work; one command full revert:
-git checkout pre-agents-sdk-refactor
-```
-
-Or just leave `TEAMS_PUSH_TARGET=legacy` and stop the new container —
-the old `teams_bot/` keeps serving Teams users.
+Point the bridge at a different push URL (or stop this container) and
+the web channel keeps working untouched. The bridge has no
+teams_agent-specific behavior beyond the optional push fan-out.
 
 ## Prereqs
 
@@ -49,13 +51,11 @@ the old `teams_bot/` keeps serving Teams users.
 > mode**: the agent calls the bridge's `/directline/token` proxy, which
 > mints a server-side Copilot Studio Direct Line token. End users open
 > Teams, type, get answer. No OBO. No Entra app for delegation. No bot
-> OAuth Connection. (The legacy `teams_bot/` works the same way — we
-> kept that property.)
+> OAuth Connection.
 
-## 1. Create a NEW Azure Bot resource
+## 1. Create an Azure Bot resource
 
-Do not reuse the legacy `teams_bot/` bot. We want true side-by-side so
-rollback is trivial. The provisioning script
+The provisioning script
 [`scripts/provision-teams-agent.ps1`](../scripts/provision-teams-agent.ps1)
 automates this; the manual steps are listed below for reference.
 
@@ -127,10 +127,6 @@ Update the Azure Bot from step 1 -> Configuration -> Messaging endpoint to
 Edit `bridge/.env` (the existing file used by the Flask bridge):
 
 ```dotenv
-# Stage 1 cutover knob: send pushes to BOTH the legacy teams_bot.push
-# in-process call AND the new teams_agent HTTP endpoint. This lets you
-# run both Teams app installs in parallel and compare behavior.
-TEAMS_PUSH_TARGET=both
 TEAMS_AGENT_PUSH_URL=https://<your-agent-tunnel>-3978.<region>.devtunnels.ms
 TEAMS_AGENT_PUSH_SECRET=<same long random string as PUSH_SHARED_SECRET above>
 ```
@@ -142,13 +138,13 @@ docker compose -f bridge/docker-compose.yml restart
 docker compose -f bridge/docker-compose.yml logs -f bridge | Select-String "push"
 ```
 
-When you only want the new path, set `TEAMS_PUSH_TARGET=agent`. To roll
-back, set it to `legacy` (or unset; default is legacy).
+When the env vars are unset the bridge logs a warning per Teams push
+but keeps running — the web channel is unaffected.
 
-## 5. Sideload the new Teams app
+## 5. Sideload the Teams app
 
-Build a *new* Teams app manifest with the **new** Azure Bot's app id (do
-NOT edit the legacy `teams_bot/manifest/manifest.json`). Recommended layout:
+Build a Teams app manifest with the Azure Bot's app id from step 1.
+Recommended layout:
 
 ```
 teams_agent/manifest/
@@ -157,12 +153,7 @@ teams_agent/manifest/
   outline.png
 ```
 
-Use the same icon files as the legacy bot if you like, but **change the
-app `id` (top-level GUID)** so Teams treats it as a different app and you
-can install both in parallel. Same goes for `name.short` (e.g. add
-`(Agent SDK)` suffix during testing).
-
-Sideload via Teams -> Apps -> Manage your apps -> Upload a custom app.
+Sideload via Teams → Apps → Manage your apps → Upload a custom app.
 
 ## 6. Smoke test
 
@@ -174,37 +165,31 @@ Sideload via Teams -> Apps -> Manage your apps -> Upload a custom app.
    exactly like the web channel does — no Teams-specific changes there.
    See [`04-copilot-studio.md`](04-copilot-studio.md) if you haven't
    wired it yet.
-4. Bridge state moves BOT -> QUEUED. The bridge fires the
-   "Connecting an agent..." status push. With `TEAMS_PUSH_TARGET=both`
-   you'll see it in BOTH the new and legacy Teams app installs.
-5. In ServiceNow, accept the work item. Bridge -> LIVE. Type a reply on
-   the agent side; it appears in the new Teams app via
-   `/api/teams/push` -> `continue_conversation`.
+4. Bridge state moves BOT → QUEUED. The bridge fires the
+   "Connecting an agent..." status push, which appears in the Teams app.
+5. In ServiceNow, accept the work item. Bridge → LIVE. Type a reply on
+   the agent side; it appears in the Teams app via
+   `/api/teams/push` → `continue_conversation`.
 
-If anything fails, check `docker logs` for both `bridge` and the new agent
+If anything fails, check `docker logs` for both `bridge` and the agent
 container, then jump to [`07-troubleshooting.md`](07-troubleshooting.md).
 
 ## 7. (Optional) Genesys-style escalation event
 
-The Stage 1 setup leaves CS topic -> bridge HTTP action wiring intact.
-The agent ALSO listens for an event activity named
-`COPILOTSTUDIO_HANDOFF_EVENT_NAME` (default `ServiceNowHandoff`) — if you
-add an Event node at the end of your CS Escalate topic, the agent will
-catch it and call the bridge directly, fully matching the Genesys sample
-pattern. This becomes useful if you ever want to remove the HTTP action
-from CS and let the agent own the escalation API call.
+The baseline setup leaves the CS topic → bridge HTTP action wiring
+intact. The agent ALSO listens for an event activity named
+`COPILOTSTUDIO_HANDOFF_EVENT_NAME` (default `ServiceNowHandoff`) — if
+you add an Event node at the end of your CS Escalate topic, the agent
+will catch it and call the bridge directly, fully matching the Genesys
+sample pattern. This becomes useful if you ever want to remove the
+HTTP action from CS and let the agent own the escalation API call.
 
-## Cutover checklist (when ready to retire the legacy relay)
+## Cutover-from-step-zero checklist
 
-1. Set `TEAMS_PUSH_TARGET=agent` (not `both`) in `bridge/.env`. Restart.
-2. Validate end-to-end again per step 6.
-3. Uninstall legacy Teams app from your tenant (or just unpublish).
-4. Stop / scale-to-zero the legacy `teams_bot/` container.
-5. (Stage 3) Delete `teams_bot/`, remove `MS_APP_*` env vars, remove
-   `_push_to_teams_legacy` from the bridge.
-
-Until step 5 you can revert in seconds by flipping `TEAMS_PUSH_TARGET`
-back to `legacy`.
+1. `TEAMS_AGENT_PUSH_URL` / `TEAMS_AGENT_PUSH_SECRET` set in
+   `bridge/.env`. Bridge restarted.
+2. Smoke test per step 6 passes.
+3. Teams app installed in your tenant.
 
 ## Behavior notes (gotchas baked into the implementation)
 

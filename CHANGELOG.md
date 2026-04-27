@@ -7,13 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- **`teams_agent/`**: M365 Agents SDK port of the Teams relay (Genesys-style
-  handoff). Runs side-by-side with the legacy `teams_bot/` so cutover and
-  rollback are flips of `TEAMS_PUSH_TARGET` (`legacy` / `agent` / `both`).
-  See [`docs/13-teams-agent-setup.md`](docs/13-teams-agent-setup.md). Tag
-  `pre-agents-sdk-refactor` marks the pre-refactor snapshot.
-- Bridge env-gated push dispatcher (`TEAMS_PUSH_TARGET`,
-  `TEAMS_AGENT_PUSH_URL`, `TEAMS_AGENT_PUSH_SECRET`).
+- **`teams_skill/`**: third channel built on the Microsoft 365 Agents
+  SDK and registered with Copilot Studio via the **A2A "Add an agent"**
+  connector. CS dispatches turns to the skill based on a natural-language
+  agent description; the skill replies synchronously and proactively
+  pushes ServiceNow CSR messages back to the signed CS `serviceUrl`.
+  See [`docs/14-teams-skill-setup.md`](docs/14-teams-skill-setup.md)
+  and [`docs/v3-skill-pattern-rejected.md`](docs/v3-skill-pattern-rejected.md)
+  for why the classic Bot Framework skill protocol was abandoned in
+  favour of A2A.
+- **`teams_agent/`**: M365 Agents SDK Teams relay (Genesys-style
+  handoff). See [`docs/13-teams-agent-setup.md`](docs/13-teams-agent-setup.md).
 - **Direct Line user-id mapping** (`teams_agent/dl.py` +
   `bridge.servicenow_bridge.map_dl_user`): the agent decodes the DL token
   JWT after each token mint and registers the `dl_user_id -> sid` mapping
@@ -28,56 +32,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   bridge now auto-recycles a stale `live` session into a fresh `bot`
   session after 15 min idle (or immediately on a `closed` state, or after
   the existing 1-hour catch-all for any non-bot state).
+- Bridge env-gated push to `teams_agent/`: `TEAMS_AGENT_PUSH_URL`,
+  `TEAMS_AGENT_PUSH_SECRET`.
+
+### Removed
+- **`teams_bot/`** (Bot Framework `botbuilder-python` 4.17.x relay) and
+  its docs (`docs/11-teams-bot-setup.md`, `docs/12-teams-end-to-end-test.md`).
+  Microsoft put `botbuilder-python` into maintenance mode and replaced it
+  with `microsoft-agents-*`; once `teams_agent/` reached parity, keeping
+  the legacy SDK around only added cutover knobs and contributor
+  confusion. Both surviving Teams channels (`teams_agent/`, `teams_skill/`)
+  use the supported Agents SDK. See
+  [`docs/10-teams-channel-overview.md`](docs/10-teams-channel-overview.md)
+  for the full rationale.
+- `TEAMS_PUSH_TARGET` bridge env var. With `teams_bot/` gone the
+  dispatcher always pushes to `teams_agent/` when configured.
 
 ### Fixed
 - Agent SDK message route used a regex catch-all (`@app.message(re.compile(".*"))`)
   which silently failed to match text containing newlines. Switched to
   `@app.activity("message")` so every message activity is dispatched.
-
-### Deprecated
-- `teams_bot/` (Bot Framework `botbuilder-python`). Will be removed once
-  parity with `teams_agent/` is validated end-to-end.
-
-### Added
-- **Microsoft Teams channel** as a first-class second front-end alongside
-  the browser webchat. A new `teams_bot/` package adds a Bot Framework
-  relay that proxies Teams 1:1 chats to the same Copilot Studio agent
-  and ServiceNow live-chat handoff used by the web UI:
-  - `teams_bot/runtime.py` -- `CloudAdapter` singleton with sync wrappers
-    around `process_activity` / `continue_conversation` so Flask routes
-    can drive an async botbuilder pipeline.
-  - `teams_bot/relay.py` -- `TeamsRelayBot` state machine
-    (BOT / QUEUED / LIVE / CLOSED) mirroring the web flow, including
-    Adaptive Cards for status changes, typing indicators, and a
-    universal `new` / `reset` / `start over` escape command from any
-    state.
-  - `teams_bot/directline.py` -- per-session Direct Line client to
-    Copilot Studio. Always starts the conversation explicitly so we
-    capture the regional DL gateway from `streamUrl` (CS tokens are
-    bound to e.g. `unitedstates.directline.botframework.com`, not the
-    global host). Filters bot replies by the activity IDs we posted so
-    DL's `from.id` rewrite doesn't leak the user's own messages back.
-  - `teams_bot/push.py` -- proactive push of rep replies / status /
-    typing into the Teams chat via `continue_conversation`.
-  - `teams_bot/blueprint.py` -- Flask blueprint exposing
-    `/api/messages` for the Bot Framework channel.
-  - `teams_bot/manifest/` -- v1.16 Teams app manifest, build script
-    (`build.ps1`), and placeholder icon generator
-    (`make-placeholder-icons.ps1`).
-- `bridge/servicenow_bridge.py` channel-aware `BridgeSession`:
-  `channel`, `teams_user_key`, `teams_conversation_reference`,
-  and a `_push_to_user` dispatcher that routes outbound events to
-  the right front-end (WebSocket for web, `continue_conversation` for
-  Teams).
-- `/api/teams/init-session` and `/api/teams/reset-session` Flask routes
-  for the Teams relay's idempotent per-AAD-user session lookup.
-- `TEAMS_SESSION_IDLE_TIMEOUT_S` env var (default 3600s) plus
-  `last_activity_at` on `BridgeSession`. The Teams init route auto-recycles
-  any non-BOT session that is `closed` or has been idle past the timeout
-  so a user who escalated days ago isn't stuck talking to a long-dead
-  live chat.
-- Docs: `docs/10-teams-channel-overview.md`,
-  `docs/11-teams-bot-setup.md`, `docs/12-teams-end-to-end-test.md`.
+- A2A connector raised `aiohttp.ContentTypeError` on Copilot Studio's
+  empty 200 ack to proactive POSTs. Monkey-patched in
+  `teams_skill/app.py::_patch_mcs_connector()`.
 
 ### Added
 - `BRIDGE_PUBLIC_URL` env var (in `bridge/.env`) is now the single source

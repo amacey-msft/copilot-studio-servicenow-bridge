@@ -27,14 +27,6 @@ from flask_sock import Sock
 
 from servicenow_bridge import bp as servicenow_bp, register_websocket
 
-# The Teams relay bot is optional; it auto-disables when MS_APP_ID is not set,
-# so this import + register call is safe in environments that only use the
-# browser web channel.
-try:
-    from teams_bot.blueprint import register as register_teams_bot
-except Exception:  # noqa: BLE001
-    register_teams_bot = None  # type: ignore[assignment]
-
 
 WEB_DIR = pathlib.Path(__file__).resolve().parent.parent / "web"
 
@@ -46,13 +38,6 @@ def create_app() -> Flask:
     # The bridge: HTTP routes + WebSocket route.
     app.register_blueprint(servicenow_bp)
     register_websocket(sock)
-
-    # Teams relay bot (no-op when MS_APP_ID is unset).
-    if register_teams_bot is not None:
-        try:
-            register_teams_bot(app)
-        except Exception:  # noqa: BLE001
-            app.logger.exception("Failed to register teams_bot blueprint")
 
     @app.get("/")
     def _index():

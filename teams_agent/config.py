@@ -1,14 +1,10 @@
-"""Environment configuration for `teams_agent` (M365 Agents SDK).
-
-Distinct from `teams_bot.config` so the two services can run side-by-side
-with separate Azure Bot registrations during cutover.
-"""
+"""Environment configuration for `teams_agent` (M365 Agents SDK)."""
 from __future__ import annotations
 
 import os
 
 
-# --- Azure Bot registration (NEW resource, not the legacy teams_bot one) ---
+# --- Azure Bot registration ---
 
 AZURE_BOT_APP_ID = os.environ.get("AZURE_BOT_APP_ID", "").strip()
 AZURE_BOT_APP_PASSWORD = os.environ.get("AZURE_BOT_APP_PASSWORD", "").strip()
@@ -54,7 +50,7 @@ PUSH_SHARED_SECRET = os.environ.get("PUSH_SHARED_SECRET", "").strip()
 
 # --- Direct Line (CS proxy via bridge) -------------------------------------
 
-# Mirror the legacy teams_bot tunables.
+# Direct Line proxy tunables.
 DIRECTLINE_TURN_TIMEOUT_S = float(os.environ.get("DIRECTLINE_TURN_TIMEOUT_S", "12"))
 DIRECTLINE_QUIET_PERIOD_S = float(os.environ.get("DIRECTLINE_QUIET_PERIOD_S", "1.5"))
 DIRECTLINE_POLL_INTERVAL_S = float(os.environ.get("DIRECTLINE_POLL_INTERVAL_S", "0.5"))

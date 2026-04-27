@@ -1,4 +1,4 @@
-"""Async Direct Line client — parity port of `teams_bot.directline`.
+"""Async Direct Line client for the M365 Agents SDK relay.
 
 Each `BridgeSession` (keyed by sid) owns one long-lived Direct Line
 conversation against the Copilot Studio agent. We poll instead of using
@@ -6,7 +6,7 @@ the WebSocket streamUrl because polling is simple and we only need to
 pump replies for ~10s after each user turn.
 
 The DL token + conversationId come from the bridge's existing
-`POST /directline/token` route (same as the legacy teams_bot), so the
+`POST /directline/token` route, so the
 agent has zero CS secrets of its own.
 """
 from __future__ import annotations

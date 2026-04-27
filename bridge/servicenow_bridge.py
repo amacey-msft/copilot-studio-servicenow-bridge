@@ -71,11 +71,10 @@ TEAMS_LIVE_IDLE_RECYCLE_S = float(
     os.environ.get("TEAMS_LIVE_IDLE_RECYCLE_S", "900")
 )
 
-# Which downstream Teams sender receives outbound pushes:
-#   "legacy"  -> in-process teams_bot.push (Bot Framework SDK; default)
-#   "agent"   -> HTTP POST to TEAMS_AGENT_PUSH_URL (M365 Agents SDK port)
-#   "both"    -> fan out to both (use during cutover parity test)
-TEAMS_PUSH_TARGET = (os.environ.get("TEAMS_PUSH_TARGET") or "legacy").strip().lower()
+# Outbound Teams pushes go to the M365 Agents SDK port (`teams_agent/`).
+# The legacy in-process Bot Framework path (`teams_bot/`) was removed once
+# Microsoft deprecated `botbuilder-python` in favour of
+# `microsoft-agents-*`. See docs/10-teams-channel-overview.md.
 TEAMS_AGENT_PUSH_URL = (os.environ.get("TEAMS_AGENT_PUSH_URL") or "").rstrip("/")
 TEAMS_AGENT_PUSH_SECRET = os.environ.get("TEAMS_AGENT_PUSH_SECRET") or ""
 TEAMS_AGENT_PUSH_TIMEOUT_S = float(os.environ.get("TEAMS_AGENT_PUSH_TIMEOUT_S", "10"))
@@ -114,15 +113,15 @@ class BridgeSession:
     # fires on every insert (including ours), so the webhook can re-deliver
     # the user's own text as a rep message. We drop the matching echo.
     recent_user_texts: deque = field(default_factory=lambda: deque(maxlen=20))
-    # ----- Teams channel additions (see ../teams_bot/) -----
-    # "web" (browser webchat, default) | "teams" (Bot Framework relay)
+    # ----- Teams channel additions (see ../teams_agent/) -----
+    # "web" (browser webchat, default) | "teams" (M365 Agents SDK relay)
     channel: str = "web"
     # Stable per-Teams-user key (AAD object id) used to look up an existing
     # session on subsequent turns so we don't allocate a new sid per message.
     teams_user_key: str | None = None
-    # Serialized BotFramework ConversationReference for proactive push via
-    # adapter.continue_conversation. Stored as a plain dict so the bridge
-    # itself stays free of botbuilder imports (lazy import in the push hook).
+    # Serialized conversation reference for proactive push via the
+    # teams_agent /api/teams/push endpoint. Stored as a plain dict so the
+    # bridge itself stays free of agents-SDK imports.
     teams_conversation_reference: dict | None = None
 
 
@@ -310,12 +309,11 @@ def _push_to_teams_agent(session: BridgeSession, payload: dict) -> bool:
     """HTTP push to the M365 Agents SDK port (`teams_agent/`).
 
     Returns True on 2xx, False on any failure. Does not raise — Teams pushes
-    are best-effort by design (the user always has the legacy poll fallback).
+    are best-effort by design (the user always has the poll fallback).
     """
     if not TEAMS_AGENT_PUSH_URL or not TEAMS_AGENT_PUSH_SECRET:
         current_app.logger.warning(
-            "[push] TEAMS_PUSH_TARGET=%s but TEAMS_AGENT_PUSH_URL/SECRET unset",
-            TEAMS_PUSH_TARGET,
+            "[push] TEAMS_AGENT_PUSH_URL/SECRET unset; cannot push to teams_agent"
         )
         return False
     if not session.teams_conversation_reference:
@@ -337,43 +335,17 @@ def _push_to_teams_agent(session: BridgeSession, payload: dict) -> bool:
         return False
 
 
-def _push_to_teams_legacy(session: BridgeSession, payload: dict) -> bool:
-    try:
-        from teams_bot.push import push as _teams_push
-    except Exception:  # noqa: BLE001
-        current_app.logger.exception("[push] teams_bot import failed")
-        return False
-    try:
-        _teams_push(session.teams_conversation_reference, payload)
-        return True
-    except Exception:  # noqa: BLE001
-        current_app.logger.exception("[push] teams_bot.push raised")
-        return False
-
-
 def _push_to_user(session: BridgeSession, payload: dict) -> None:
     """Channel-aware dispatcher.
 
-    Web sessions go to the WS/poll buffer.
-
-    Teams sessions go to whichever downstream is selected by
-    `TEAMS_PUSH_TARGET` (legacy in-process Bot Framework, the new
-    HTTP-based teams_agent, or both during cutover).
+    Web sessions go to the WS/poll buffer. Teams sessions are buffered for
+    /poll-style debug tools and also pushed to the M365 Agents SDK port
+    (`teams_agent/`) over HTTP.
     """
     if session.channel == "teams":
-        # Buffer regardless so /poll-style debug tools still work.
         with session.lock:
             session.pending.append(payload)
-        target = TEAMS_PUSH_TARGET
-        if target in ("agent", "both"):
-            _push_to_teams_agent(session, payload)
-        if target in ("legacy", "both"):
-            _push_to_teams_legacy(session, payload)
-        if target not in ("legacy", "agent", "both"):
-            current_app.logger.warning(
-                "[push] unknown TEAMS_PUSH_TARGET=%r; falling back to legacy", target
-            )
-            _push_to_teams_legacy(session, payload)
+        _push_to_teams_agent(session, payload)
         return
     _push_to_browser(session, payload)
 
@@ -427,7 +399,7 @@ def init_session():
 def init_session_teams():
     """Idempotent per-Teams-user session lookup/create.
 
-    Called by the relay bot (teams_bot/) on every turn. The first call for a
+    Called by the relay bot (teams_agent/) on every turn. The first call for a
     given `teams_user_key` allocates a new BridgeSession (channel="teams")
     and resolves the AAD email to a sys_user.sys_id; later calls return the
     same sid (so escalations and webhooks continue to find the right session).
@@ -743,7 +715,7 @@ def webhook():
     elif event == "typing":
         # Rep is typing in SN; surface as a transient indicator on the user
         # side. Web ignores by default (no-op in browser dispatcher); Teams
-        # renders an Activity(type="typing"). See teams_bot/push.py.
+        # renders an Activity(type="typing"). See teams_agent/push.py.
         _push_to_user(s, {"type": "typing", "rep_name": s.rep_name})
     else:
         # First reply implicitly transitions to LIVE if not already

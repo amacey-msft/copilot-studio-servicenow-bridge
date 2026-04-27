@@ -21,7 +21,10 @@ param(
     [switch]$SkipBuild
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
+# az CLI emits informational lines on stderr (e.g. "WARNING: Packing source...")
+# which PS treats as NativeCommandError under 'Stop'. Use Continue + explicit
+# $LASTEXITCODE checks for actual failures.
 $tag = "v$(Get-Date -Format 'MMddHHmm')"
 # When SkipBuild we deploy :latest (whatever the last successful build was)
 if ($SkipBuild) { $tag = 'latest' }
@@ -31,12 +34,15 @@ Push-Location (Resolve-Path "$PSScriptRoot/..")
 try {
     if (-not $SkipBuild) {
         Write-Host "==> Building image $fullImage" -ForegroundColor Cyan
+        # --no-logs avoids colorama emoji crash on Windows cp1252 console.
         az acr build `
             --registry $Acr `
             --image "${Image}:$tag" `
             --image "${Image}:latest" `
             --file teams_skill/Dockerfile `
+            --no-logs `
             . | Out-Host
+        if ($LASTEXITCODE -ne 0) { Write-Host "acr build failed exit=$LASTEXITCODE" -ForegroundColor Red; exit 1 }
     }
 
     # Check if app exists
@@ -52,6 +58,19 @@ try {
     $skillSecret  = $env:SKILL_APP_PASSWORD;  if (-not $skillSecret)  { $skillSecret  = 'placeholder' }
     $skillTenant  = $env:SKILL_TENANT_ID;     if (-not $skillTenant)  { $skillTenant  = '00000000-0000-0000-0000-000000000000' }
     $csParentId   = $env:CS_PARENT_APP_ID;    if (-not $csParentId)   { $csParentId   = '00000000-0000-0000-0000-000000000000' }
+    # ServiceNow connection (mirrors bridge/.env). Required for the
+    # endConversation handler to actually open a live-agent chat.
+    $snInstance   = $env:SN_INSTANCE;         if (-not $snInstance)   { $snInstance   = '' }
+    $snUser       = $env:SN_USER;             if (-not $snUser)       { $snUser       = '' }
+    $snPassword   = $env:SN_PASSWORD;         if (-not $snPassword)   { $snPassword   = '' }
+    # Shared secret for inbound SN BR webhook -> /api/sn-webhook (rep replies).
+    # NOTE: PowerShell + az CLI mishandle secret values containing '&', '}', '%'
+    # (cmd metachars). Pick an alphanumeric+dash secret for the spike or update
+    # the secret manually via a .cmd file indirection. See user memory.
+    $snWhSecret   = $env:SN_WEBHOOK_SECRET;   if (-not $snWhSecret)   { $snWhSecret   = '' }
+    if ($snWhSecret -match '[&}%]') {
+        Write-Host "==> WARNING: SN_WEBHOOK_SECRET contains shell metachars (& } %); set may truncate." -ForegroundColor Yellow
+    }
 
     if (-not $exists) {
         Write-Host "==> Creating new container app $AppName" -ForegroundColor Cyan
@@ -68,16 +87,25 @@ try {
             --registry-server "$Acr.azurecr.io" `
             --registry-username (az acr credential show -n $Acr --query username -o tsv) `
             --registry-password (az acr credential show -n $Acr --query passwords[0].value -o tsv) `
-            --secrets "skill-app-password=$skillSecret" `
+            --secrets "skill-app-password=$skillSecret" "sn-password=$snPassword" "sn-webhook-secret=$snWhSecret" `
             --env-vars `
                 "SKILL_APP_ID=$skillAppId" `
                 "SKILL_APP_PASSWORD=secretref:skill-app-password" `
                 "SKILL_TENANT_ID=$skillTenant" `
                 "CS_PARENT_APP_ID=$csParentId" `
                 "SKILL_PUBLIC_URL=https://placeholder" `
+                "SN_INSTANCE=$snInstance" `
+                "SN_USER=$snUser" `
+                "SN_PASSWORD=secretref:sn-password" `
+                "SN_WEBHOOK_SECRET=secretref:sn-webhook-secret" `
                 "PORT=3979" | Out-Host
     } else {
         Write-Host "==> Updating container app $AppName with new revision $tag" -ForegroundColor Cyan
+        # Ensure sn-password + sn-webhook-secret are up to date before referencing them.
+        az containerapp secret set `
+            --name $AppName `
+            --resource-group $ResourceGroup `
+            --secrets "sn-password=$snPassword" "sn-webhook-secret=$snWhSecret" | Out-Null
         az containerapp update `
             --name $AppName `
             --resource-group $ResourceGroup `
@@ -88,6 +116,10 @@ try {
                 "SKILL_APP_PASSWORD=secretref:skill-app-password" `
                 "SKILL_TENANT_ID=$skillTenant" `
                 "CS_PARENT_APP_ID=$csParentId" `
+                "SN_INSTANCE=$snInstance" `
+                "SN_USER=$snUser" `
+                "SN_PASSWORD=secretref:sn-password" `
+                "SN_WEBHOOK_SECRET=secretref:sn-webhook-secret" `
                 "PORT=3979" | Out-Host
     }
 

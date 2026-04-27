@@ -1,6 +1,6 @@
 """AgentApplication subclass — Genesys-style handoff for ServiceNow.
 
-State machine mirrors `teams_bot/relay.py`:
+State machine mirrors the web channel:
 
     BOT     -> proxy turns to Copilot Studio via CopilotClient. Watch for
                an event named COPILOTSTUDIO_HANDOFF_EVENT_NAME (Stage 2:

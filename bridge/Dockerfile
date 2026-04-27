@@ -10,11 +10,9 @@ RUN pip install --no-cache-dir -r /app/bridge/requirements.txt \
 
 COPY bridge/ /app/bridge/
 COPY web/    /app/web/
-COPY teams_bot/ /app/teams_bot/
 
 WORKDIR /app/bridge
 
-# Make the sibling teams_bot/ package importable from /app/bridge/app.py.
 ENV PYTHONPATH=/app
 ENV PORT=5000
 EXPOSE 5000
