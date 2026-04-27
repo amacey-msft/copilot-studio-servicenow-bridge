@@ -1,0 +1,12 @@
+kind: EnvironmentVariableDefinition
+version: 11403207
+displayName: "[IT Help Desk Triage Assistant] ServiceNow Live-Agent Handoff Skill msAppId"
+schemaName: crd20_itHelpDeskTriageAssistant.skill.ServiceNowLiveAgentHandoffSkill.AppId
+id: 8d545865-ab51-4669-a49d-60393c0babfb
+valueComponent:
+  version: 11403215
+  id: 972ab768-e141-f111-88b4-000d3a342fb4
+  definitionId: 8d545865-ab51-4669-a49d-60393c0babfb
+  value: ba5ad5d6-49b0-4d7d-b215-79bbd30fa424
+
+type: String

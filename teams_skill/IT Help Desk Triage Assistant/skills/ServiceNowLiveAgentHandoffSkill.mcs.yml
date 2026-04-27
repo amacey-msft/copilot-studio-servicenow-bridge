@@ -1,0 +1,32 @@
+mcs.metadata:
+  componentName: ServiceNow Live-Agent Handoff Skill
+  description: Escalate Copilot Studio conversation to a ServiceNow live agent via AWA queue.
+kind: SkillDefinition
+appId:
+  schemaName: crd20_itHelpDeskTriageAssistant.skill.ServiceNowLiveAgentHandoffSkill.AppId
+
+appEndpoint:
+  schemaName: crd20_itHelpDeskTriageAssistant.skill.ServiceNowLiveAgentHandoffSkill.AppEndpoint
+
+manifestVersion: 0.1.0
+actions:
+  - activityType: event
+    actionId: endConversation
+    title: Start a live-agent handoff. Call when the user wants to talk to a person.
+    inputType:
+      properties:
+        initialQuery:
+          displayName: initialQuery
+          type: String
+
+        userEmail:
+          displayName: userEmail
+          type: String
+
+    outputType: {}
+
+  - activityType: message
+    actionId: sendMessage
+    title: Relay a message from the user to the live agent during an active handoff.
+    inputType: {}
+    outputType: {}
