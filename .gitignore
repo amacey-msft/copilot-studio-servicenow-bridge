@@ -32,3 +32,15 @@ secret_*
 teams_agent/manifest/dist/
 
 teams_agent/manifest/dist/
+
+# Local doc/diagram render artifacts (only the rendered PNG is committed)
+docs/_build/
+docs/00-architecture-overview.md
+docs/00-architecture-overview.pdf
+tools/render_architecture_pdf.py
+tools/render_flow_diagram.py
+
+# Scratch / one-off files
+logs*.txt
+pva_sps.json
+HandoverAgentSample.zip

@@ -11,6 +11,8 @@ Browser webchat ──► Copilot Studio ──► (handoff) ──► Flask bri
                                (Service Now Agent Workspace pane)
 ```
 
+![End-to-end flow](docs/flow-diagram.png)
+
 This repo packages the result of figuring out — the hard way — exactly which
 ServiceNow tables, APIs, and configuration steps are required to make
 Advanced Work Assignment (AWA) actually route a chat that originated outside
