@@ -1,4 +1,4 @@
-# 14 - Teams skill setup (Copilot Studio A2A "Add an agent" connector)
+# 14 - Teams A2A setup (Copilot Studio A2A "Add an agent" connector)
 
 This guide stands up the [`teams_a2a/`](../teams_a2a/) service and
 registers it with a Copilot Studio agent as an **A2A** ("Add an agent →
