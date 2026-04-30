@@ -1,6 +1,6 @@
 """HTTP client for the existing Flask bridge.
 
-Reuses every endpoint `teams_bot/relay.py` already calls. No changes to
+Calls the same set of bridge HTTP endpoints the web channel uses. No changes to
 the bridge required for Stage 1; Stage 2 will add `/api/teams/push` so
 the bridge can push proactive replies back to this agent.
 """

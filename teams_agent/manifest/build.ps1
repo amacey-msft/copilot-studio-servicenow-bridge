@@ -1,6 +1,5 @@
 # Build the Teams app package (.zip) for sideloading the M365 Agents SDK
-# port (teams_agent/). Side-by-side with teams_bot/manifest/build.ps1 -
-# uses a different manifest id, name suffix, and AZURE_BOT_APP_ID.
+# relay (teams_agent/).
 #
 # Usage:
 #   .\build.ps1 -BotId <AZURE_BOT_APP_ID> -AgentHost <agent.example.com>
@@ -47,13 +46,7 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 foreach ($name in 'icon-color.png','icon-outline.png') {
     $iconSrc = Join-Path $here $name
     if (-not (Test-Path $iconSrc)) {
-        Write-Warning "Missing $name in $here. Copying from teams_bot/manifest/ as fallback."
-        $fallback = Join-Path (Split-Path -Parent (Split-Path -Parent $here)) "teams_bot\manifest\$name"
-        if (Test-Path $fallback) {
-            Copy-Item $fallback (Join-Path $staging $name)
-        } else {
-            Write-Warning "No fallback $name either. Package won't sideload until you add icons."
-        }
+        Write-Warning "Missing $name in $here. Add icons before sideloading."
         continue
     }
     Copy-Item $iconSrc (Join-Path $staging $name)

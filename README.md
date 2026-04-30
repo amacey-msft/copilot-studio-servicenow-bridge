@@ -11,6 +11,8 @@ Browser webchat ──► Copilot Studio ──► (handoff) ──► Flask bri
                                (Service Now Agent Workspace pane)
 ```
 
+![End-to-end flow](docs/flow-diagram.png)
+
 This repo packages the result of figuring out — the hard way — exactly which
 ServiceNow tables, APIs, and configuration steps are required to make
 Advanced Work Assignment (AWA) actually route a chat that originated outside
@@ -31,14 +33,13 @@ updates instantly.
 | [`docs/08-api-reference.md`](docs/08-api-reference.md)           | Every ServiceNow API and table touched, with rationale.      |
 | [`docs/09-production-hardening.md`](docs/09-production-hardening.md) | Checklist before promoting beyond a dev PDI.             |
 | [`docs/10-teams-channel-overview.md`](docs/10-teams-channel-overview.md) | Microsoft Teams channel architecture and design.    |
-| [`docs/11-teams-bot-setup.md`](docs/11-teams-bot-setup.md)       | Provisioning the Azure Bot, AAD app, and Teams manifest.     |
-| [`docs/12-teams-end-to-end-test.md`](docs/12-teams-end-to-end-test.md) | Sideload and validate the Teams relay end-to-end.       |
-| [`docs/13-teams-agent-setup.md`](docs/13-teams-agent-setup.md) | M365 Agents SDK port of the Teams relay (side-by-side cutover). |
+| [`docs/13-teams-agent-setup.md`](docs/13-teams-agent-setup.md) | Teams via M365 Agents SDK Genesys-style handoff (`teams_agent/`).      |
+| [`docs/14-teams-a2a-setup.md`](docs/14-teams-a2a-setup.md) | Teams via Copilot Studio A2A “Add an agent” connector (`teams_a2a/`). |
 | `servicenow/`                                   | Three Scripted REST scripts to paste into ServiceNow.        |
 | `bridge/`                                       | Reference Flask bridge (`servicenow_bridge.py`).             |
 | `web/`                                          | Reference HTML page with the bot ↔ live agent state machine. |
-| `teams_bot/`                                    | Legacy Bot Framework relay (deprecated SDK; kept for rollback). |
-| `teams_agent/`                                  | New M365 Agents SDK port of `teams_bot/` (Genesys-style handoff). |
+| `teams_agent/`                                  | Teams relay built on the M365 Agents SDK (Genesys-style proactive push). |
+| `teams_a2a/`                                  | Teams relay registered with Copilot Studio as an A2A agent (request/response + proactive push). |
 
 ## Quick start
 

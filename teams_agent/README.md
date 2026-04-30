@@ -1,32 +1,29 @@
-# teams_agent — M365 Agents SDK port of `teams_bot/`
+# teams_agent — Teams relay (M365 Agents SDK, Genesys-style)
 
-**Status:** Stage 1 scaffold. Side-by-side with the existing `teams_bot/`
-relay (which uses the deprecated `botbuilder-python` SDK). This folder uses
-the supported `microsoft-agents-*` Python SDK and the *Genesys-style*
-handoff pattern from the [M365 Agents SDK
-samples](https://github.com/microsoft/Agents/tree/main/samples/dotnet/GenesysHandoff).
+A Microsoft Teams 1:1 bot built on the supported `microsoft-agents-*`
+SDK. Proxies turns to a Copilot Studio agent over Direct Line and
+pushes ServiceNow CSR replies into the same Teams chat via
+`adapter.continue_conversation`. Pattern adapted from the
+[Genesys handoff sample](https://github.com/microsoft/Agents/tree/main/samples/dotnet/GenesysHandoff).
 
-## Why this exists
+This is one of two Teams channels in the repo. See
+[`docs/10-teams-channel-overview.md`](../docs/10-teams-channel-overview.md)
+for how it compares to `teams_a2a/` (the A2A path), and for why the
+older `teams_bot/` (Bot Framework `botbuilder-python`) implementation
+was removed.
 
-The original Teams channel implementation, `teams_bot/`, is built on the deprecated
-Bot Framework SDK. The replacement guidance is the
-[Copilot Studio Samples — contact center](https://microsoft.github.io/CopilotStudioSamples/contact-center/)
-collection. We chose the **Genesys** pattern (not `skill-handoff`) because
-it matches what `teams_bot/` already does:
+## Why this pattern
+
+We chose the **Genesys** pattern (over the classic Bot Framework
+skill protocol) because:
 
 - Agent SDK app fronts the Teams channel (owns `/api/messages`)
-- Forwards user turns to Copilot Studio via `CopilotClient`
+- Forwards user turns to Copilot Studio via Direct Line
 - Catches an escalation **event** raised by the CS Escalate topic, then
   takes over the message path itself
 - Receives live-agent replies via a webhook → proactively pushes them
   back into the Teams chat via `continue_conversation`
-
-The legacy `teams_bot/` does the same conceptually but talks Direct Line
-directly and uses `botbuilder-python`.
-
-> **Why the new SDK?** Side-by-side comparison of Bot Framework SDK vs
-> M365 Agents SDK (architecture, what's better, what's still rough) lives
-> in [`docs/10-teams-channel-overview.md`](../docs/10-teams-channel-overview.md#bot-framework-sdk-vs-m365-agents-sdk--what-actually-differs).
+- No user sign-in card (server-side DL token mint via the bridge)
 
 ## Architecture
 
@@ -85,7 +82,7 @@ Key points the diagram encode:
   outbound `/api/teams/push` → `continue_conversation`.
 - **No user sign-in.** Direct Line token is minted **server-side** by the
   bridge from a Copilot Studio Direct Line secret. End users see no OAuth
-  card; this matches the legacy `teams_bot/` UX.
+  card.
 - **State machine in three states:** `bot` (forward to CS), `queued`
   (waiting for CSR), `live` (forward to SN AWA work_item via `user-message`).
   See `agent.py` `handle_turn`.
@@ -96,11 +93,11 @@ Key points the diagram encode:
   [`docs/13`](../docs/13-teams-agent-setup.md) "Behavior notes".
 - **Existing browser webchat path is unchanged.** This sits alongside it.
 
-## What's in this folder (Stage 1)
+## What's in this folder
 
 | File | Purpose |
 | ---- | ------- |
-| `config.py` | Env-var loader (separate from `teams_bot/config.py`) |
+| `config.py` | Env-var loader |
 | `state.py` | Per-conversation state: CS conversation id, escalation flag, CS reference |
 | `agent.py` | `AgentApplication` subclass — message router + escalation handler |
 | `dl.py` | Async Direct Line client (CS token from bridge, JWT user-id decode, map-dl-user) |
@@ -113,19 +110,14 @@ Key points the diagram encode:
 
 ## What is NOT touched
 
-- `teams_bot/` — left exactly as-is; runs in parallel until cutover
 - `bridge/` — Flask code unchanged; we call its existing endpoints
-- `web/` — browser webchat untouched (no Bot Framework in that path)
+- `web/` — browser webchat untouched
 - `servicenow/` — AWA queue, BR, scripted REST untouched
 
 ## Rollback
 
-```powershell
-git checkout pre-agents-sdk-refactor
-```
-
-…or just stop the new container; the old `teams_bot/` keeps serving Teams
-on its own bot id / app id.
+Stop this container or unset `TEAMS_AGENT_PUSH_URL` on the bridge; the
+web channel keeps working untouched.
 
 ## Required Azure setup before running
 
@@ -134,7 +126,7 @@ via the bridge's `/directline/token` proxy, not via the SDK's `CopilotClient`
 + OBO sign-in flow. **No user sign-in card. No Entra OBO app reg. No bot
 OAuth connection.** End users open Teams, type, get answer.
 
-1. **New** Azure Bot resource (don't reuse the legacy `teams_bot/` one):
+1. Azure Bot resource:
    - Auth type: `SingleTenant` (recommended; set `--tenant-id`) or `MultiTenant`
      - `MultiTenant` is **deprecated** in `az bot create` since late 2024;
        use `SingleTenant` unless you specifically need it.
