@@ -233,10 +233,15 @@ def _build_app_and_adapter():
                 )
                 _log.info("[a2a] relayed user->SN convo=%s text=%r",
                           active.sn_conversation_sys_id, text[:80])
-            except Exception:  # noqa: BLE001
-                _log.exception("[a2a] relay user->SN failed")
+            except Exception as exc:  # noqa: BLE001
+                _log.exception("[a2a] relay user->SN failed; clearing stale handoff")
+                # Stale SN convo (closed by agent, session expired, etc.)
+                # clear local state so the NEXT user turn re-opens a fresh
+                # chat instead of looping the same 500 forever.
+                handoff_state.end(convo_id)
                 await context.send_activity(
-                    "Sorry — I couldn't pass that to the live agent. Try again?"
+                    "Looks like the previous live-agent chat has ended. "
+                    "Send your message again to start a fresh one."
                 )
                 return
 

@@ -156,4 +156,9 @@ def send_user_message(
         headers={"Accept": "application/json", "Content-Type": "application/json"},
         timeout=SN_REQUEST_TIMEOUT,
     )
+    if r.status_code >= 400:
+        _log.error(
+            "send_message %s body=%r resp=%r",
+            r.status_code, body, (r.text or "")[:1000],
+        )
     r.raise_for_status()

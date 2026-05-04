@@ -4,6 +4,15 @@ This document is the Teams analogue of [`01-architecture.md`](01-architecture.md
 The web channel architecture in `01` is unchanged; everything below is
 additive.
 
+> **Update 2026-05-04:** the web channel and the `teams_a2a` channel
+> now share **the same Copilot Studio agent** (`crd20_itHelpDeskTriageAssistant`).
+> The browser reaches it via the bridge's Direct Line token relay; the
+> Teams channel reaches it via CS's native Teams channel. Either way,
+> escalation runs through the **Connected Agent** ("ServiceNow Live
+> Agent", A2A) that wraps `teams_a2a/api/messages`. The legacy
+> Bot Framework Skill path was removed — see
+> [`v3-skill-pattern-rejected.md`](v3-skill-pattern-rejected.md).
+
 ## Three channels in this repo
 
 The repo ships **one web channel** and **two Teams channels**. They all
@@ -12,9 +21,9 @@ talk to the same bridge (`bridge/`) and the same ServiceNow setup
 
 | Folder | Channel | SDK / pattern | Setup doc |
 | ------ | ------- | ------------- | --------- |
-| [`web/`](../web/) + [`bridge/`](../bridge/) | Browser webchat | BotFramework WebChat against Copilot Studio Direct Line | [`05-browser-webchat.md`](05-browser-webchat.md) |
+| [`web/`](../web/) + [`bridge/`](../bridge/) | Browser webchat | BotFramework WebChat against Copilot Studio Direct Line (same CS agent as `teams_a2a`) | [`05-browser-webchat.md`](05-browser-webchat.md) |
 | [`teams_agent/`](../teams_agent/) | Microsoft Teams (1:1) | **M365 Agents SDK**, Genesys-style server-side handoff | [`13-teams-agent-setup.md`](13-teams-agent-setup.md) |
-| [`teams_a2a/`](../teams_a2a/) | Microsoft Teams (1:1) via Copilot Studio | **M365 Agents SDK** registered with Copilot Studio as an **A2A agent** ("Add an agent" connector) | [`14-teams-a2a-setup.md`](14-teams-a2a-setup.md) |
+| [`teams_a2a/`](../teams_a2a/) | Microsoft Teams (1:1) via Copilot Studio, **also serves the web channel as a Connected Agent** | **M365 Agents SDK** registered with Copilot Studio as an **A2A agent** ("Add an agent" connector) | [`14-teams-a2a-setup.md`](14-teams-a2a-setup.md) |
 
 > A previous `teams_bot/` folder built on `botbuilder-python` 4.17.x
 > was removed in v3 because Microsoft put that SDK into maintenance

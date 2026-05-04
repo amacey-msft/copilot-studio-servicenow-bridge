@@ -6,11 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Unified handoff path:** the web channel now uses the same Copilot
+  Studio agent (`crd20_itHelpDeskTriageAssistant`) as the Teams channel.
+  Browser hits the bridge's `/directline/token` relay; bridge mints a
+  DL token against the unified agent. Escalation on every channel runs
+  through the **Connected Agent** wrapping `teams_a2a/api/messages`.
+- The Bot Framework Skill registration on the same `/api/messages`
+  endpoint was **removed**. It only worked on classic-app-reg agents,
+  not Entra Agent ID, and consistently failed with
+  `SkillNotSuccesfulResponseCode` / `401 Unauthorized` on the
+  `pvaruntime/skillsV2` callback. Confirmed in production 2026-05-04;
+  see [`docs/v3-skill-pattern-rejected.md`](docs/v3-skill-pattern-rejected.md).
+
+### Removed
+- `teams_a2a/IT Help Desk Triage Assistant/skills/ServiceNowLiveAgentHandoffSkill.mcs.yml`
+  and the two paired environment-variable yml files.
+- `InvokeSkillAction` node from the Escalate topic.
+
 ### Added
 - **`teams_a2a/`**: third channel built on the Microsoft 365 Agents
   SDK and registered with Copilot Studio via the **A2A "Add an agent"**
-  connector. CS dispatches turns to the skill based on a natural-language
-  agent description; the skill replies synchronously and proactively
+  connector. CS dispatches turns to the agent based on a natural-language
+  agent description; the agent replies synchronously and proactively
   pushes ServiceNow CSR messages back to the signed CS `serviceUrl`.
   See [`docs/14-teams-a2a-setup.md`](docs/14-teams-a2a-setup.md)
   and [`docs/v3-skill-pattern-rejected.md`](docs/v3-skill-pattern-rejected.md)

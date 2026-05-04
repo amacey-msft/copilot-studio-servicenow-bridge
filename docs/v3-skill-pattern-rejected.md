@@ -7,6 +7,28 @@ A2A ("Add an agent → Microsoft 365 Agents SDK") connector.
 
 ---
 
+> ## ⚠️ CONFIRMED IN PRODUCTION — 2026-05-04
+>
+> Between this decision and 2026-05-04 we briefly ran a *hybrid* setup
+> where the Escalate topic still called the agent as a Skill
+> (`InvokeSkillAction`) **and** the same `/api/messages` endpoint was
+> registered as a Connected Agent for follow-up turns. The Connected
+> Agent path worked. The Skill path threw `SkillNotSuccesfulResponseCode`
+> on **every** turn because the SDK reply landed on
+> `pvaruntime/.../skillsV2/.../activities` and CS rejected it with
+> `401 Unauthorized` — exactly the failure mode predicted below for
+> agents using **Entra Agent ID** identity.
+>
+> The `InvokeSkillAction` node has been removed from the
+> [Escalate topic](../teams_a2a/IT%20Help%20Desk%20Triage%20Assistant/topics/Escalate.mcs.yml).
+> The skill manifest (`skills/ServiceNowLiveAgentHandoffSkill.mcs.yml`)
+> and the two skill app-id environment variables have been deleted from
+> the agent. The unified A2A pattern (Connected Agent on every channel,
+> including the browser via the bridge's Direct Line relay) is the
+> sole supported handoff path.
+
+---
+
 ## TL;DR
 
 The CopilotStudioSamples

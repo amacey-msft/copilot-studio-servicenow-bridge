@@ -85,13 +85,11 @@ beginDialog:
             kind: EmailPrebuiltEntity
             sensitivityLevel: None
 
-    - kind: InvokeSkillAction
-      id: invokeSkillAction_2kXjGg
-      input:
-        binding:
-          initialQuery: =System.Activity.Text
-          userEmail: =Global.UserEmail
-
-      output: {}
-      skillId: crd20_itHelpDeskTriageAssistant.skill.ServiceNowLiveAgentHandoffSkill
-      actionId: endConversation
+    # NOTE: Skill invocation removed. CS Entra Agent ID identity model
+    # cannot authenticate the pvaruntime/skillsV2 callback (no client
+    # secret on the agent SP -> 401 on every reply). Handoff is now
+    # done via the Connected Agent (ServiceNow Live Agent, A2A) — the
+    # generative orchestrator dispatches the user's next message to it.
+    - kind: SendActivity
+      id: sendMessage_handoffPrompt
+      activity: Tell me briefly what you need help with, and I'll connect you to a live agent.
