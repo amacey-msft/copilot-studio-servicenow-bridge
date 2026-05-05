@@ -25,13 +25,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Web channel back on the original (unauthenticated) agent.** The
   unified `crd20_itHelpDeskTriageAssistant` is published with **Entra
   Agent ID** auth, which forces the browser through MSAL sign-in. The
-  intranet kiosk page is anonymous-by-design, so `DIRECTLINE_TOKEN_ENDPOINT`
-  has been blanked on `ca-cps-bridge` and the `/directline/token` route
-  falls back to `DIRECTLINE_SECRET` — the Bot Framework Direct Line
-  channel on **`Contoso IT Help` (`awm_contosoithelp`)**, the original
-  unauthenticated web-only agent. To re-unify later, either add MSAL
-  to `web/intranet.html` or republish the unified agent without Entra
-  auth.
+  intranet kiosk page is anonymous-by-design, so the bridge's
+  `/directline/token` route now mints tokens against
+  **`Contoso IT Help` (`awm_contosoithelp`)** — the original
+  unauthenticated web-only agent — via the Copilot Studio token
+  endpoint:
+  `https://<env-host>.environment.api.powerplatform.com/powervirtualagents/botsbyschema/awm_contosoithelp/directline/token?api-version=2022-03-01-preview`
+  The CS endpoint (vs. the legacy Bot Framework Direct Line secret)
+  picks up published Connected Agent + topic edits immediately.
+  To re-unify with the Teams channel later, either add MSAL to
+  `web/intranet.html` or republish the unified agent without Entra auth.
 - `POWERPLATFORM_BOT_SCHEMA` in `bridge/.env.sample` corrected to
   `awm_contosoithelp` (was previously left pointing at the unified
   `crd20_itHelpDeskTriageAssistant`, so `sync-bridge-url.ps1` was
