@@ -3,11 +3,14 @@
 This guide stands up the [`teams_a2a/`](../teams_a2a/) service and
 registers it with a Copilot Studio agent as an **A2A** ("Add an agent →
 Microsoft 365 Agents SDK") sub-agent. End state: a user chatting with
-the CS agent — in **Teams** (CS's native channel) **or in the browser**
-(via the bridge's Direct Line relay, see
-[`05-browser-webchat.md`](05-browser-webchat.md)) — can ask to "talk to a
-person", and CS dispatches the conversation to our agent, which opens a
-ServiceNow live chat and round-trips messages.
+**either** Copilot Studio agent in this repo — `awm_contosoithelp` in
+the **browser** (via the bridge's Direct Line relay, see
+[`05-browser-webchat.md`](05-browser-webchat.md)) or
+`crd20_itHelpDeskTriageAssistant` in **Teams** (CS native channel) —
+can ask to "talk to a person", and CS dispatches the conversation to
+this A2A agent, which opens a ServiceNow live chat and round-trips
+messages. **The same `teams_a2a` deployment is registered as a
+Connected Agent on both CS agents.**
 
 > **Note:** historically this guide was titled "Teams skill setup" and
 > the Escalate topic also called this same endpoint as a Bot Framework
