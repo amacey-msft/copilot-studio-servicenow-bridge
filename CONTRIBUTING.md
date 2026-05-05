@@ -13,14 +13,17 @@ Thanks for considering a contribution!
   - Two SOW user accounts (one consumer, one agent in your test queue).
   - The bridge running locally and reachable from your PDI (use a dev
     tunnel like `devtunnel host` or `ngrok`).
-- Run `tools/probe_e2e.ps1` against your environment first, to confirm
-  the baseline works before you change anything.
+- Walk the end-to-end probe in [`docs/06-end-to-end-test.md`](docs/06-end-to-end-test.md)
+  against your environment first, to confirm the baseline works before
+  you change anything.
 
 ## Reporting bugs
 
 Open a GitHub issue with:
 
-1. The probe output that demonstrates the failure.
+1. The request/response sequence that demonstrates the failure (the
+   probe steps in [`docs/06-end-to-end-test.md`](docs/06-end-to-end-test.md)
+   are a good template).
 2. Bridge logs around the failure (`docker compose logs bridge`).
 3. The relevant ServiceNow records (interaction number, conversation
    sys_id) and any matching `gs.warn` / `gs.error` entries from
@@ -31,8 +34,7 @@ Open a GitHub issue with:
 - Keep changes additive — don't reformat large swaths of unrelated code.
 - For changes to ServiceNow scripts, copy the relevant block into a PR
   description with a short note on why.
-- For new failure modes, add a one-line probe under `tools/` and a row
-  to `docs/07-troubleshooting.md`.
+- For new failure modes, add a row to `docs/07-troubleshooting.md`.
 
 ## Out of scope (for now)
 

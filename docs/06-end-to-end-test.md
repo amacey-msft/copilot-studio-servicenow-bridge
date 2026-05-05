@@ -15,20 +15,17 @@ passes, your integration works.
 
 ## The probe
 
-The repo ships with [`tools/probe_e2e.ps1`](../tools/probe_e2e.ps1). It
-exercises the bridge as if it were the browser:
-
-```powershell
-.\tools\probe_e2e.ps1 -BaseUrl http://localhost:5000
-```
-
-Steps it performs:
+Drive the bridge from PowerShell (or `curl`) as if you were the browser.
+The sequence below mirrors what the reference web client does:
 
 1. `POST /api/servicenow/init-session` → gets a `session_id`.
 2. `POST /api/servicenow/escalate` → asks the bridge to open a SN chat.
-3. Waits 5 seconds for AWA routing.
+3. Wait ~5 seconds for AWA routing.
 4. `POST /api/servicenow/user-message` → sends a follow-up message.
 5. `GET /api/servicenow/poll/<sid>` → drains queued events.
+
+Wrap these in a small local script (kept out of the repo) so you can
+re-run them after every change.
 
 ## Expected output
 

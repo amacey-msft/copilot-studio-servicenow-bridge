@@ -93,9 +93,10 @@ beyond a dev PDI.
 
 ## Operations
 
-- [ ] **Synthetic monitoring.** Run `tools/probe_e2e.ps1` (or
-      equivalent) on a schedule against your prod bridge from outside
-      your network. Alert on failure.
+- [ ] **Synthetic monitoring.** Run an end-to-end probe (the sequence
+      in [`06-end-to-end-test.md`](06-end-to-end-test.md)) on a schedule
+      against your prod bridge from outside your network. Alert on
+      failure.
 - [ ] **Capacity planning.** Each escalation creates a SN
       `sys_cs_conversation`, `interaction`, `sys_cs_session`,
       `sys_cs_session_binding`, `awa_work_item`, plus N

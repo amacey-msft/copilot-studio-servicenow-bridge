@@ -118,7 +118,9 @@ creates the interaction.
 
 After installing:
 
-1. Run the bridge's `tools/probe_e2e.ps1` script.
+1. Run the end-to-end probe sequence from
+   [`docs/06-end-to-end-test.md`](../docs/06-end-to-end-test.md)
+   (init-session → escalate).
 2. In SOW, accept the chat as the test agent and reply with "hello from
    probe".
 3. Re-run `Invoke-RestMethod -Uri http://<bridge>/api/servicenow/poll/<sid>`.

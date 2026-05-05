@@ -10,7 +10,7 @@ integration. They are grouped by where the symptom shows up.
 Either:
 
 - The `interaction.assigned_to` was set to a non-empty value.
-  `tools/sn_scripted_rest_open_chat.js` explicitly clears it because
+  [`servicenow/open_chat.js`](../servicenow/open_chat.js) explicitly clears it because
   `sn_cs.VASystemObject.createConversation()` defaults `assigned_to` to the
   Virtual Agent system user, and AWA refuses to route an interaction that
   already has an assignee. If you customized the script and removed the

@@ -43,8 +43,9 @@ updates instantly.
 
 1. Read [`docs/01-architecture.md`](docs/01-architecture.md) (5 min).
 2. Work through [`docs/02-servicenow-setup.md`](docs/02-servicenow-setup.md)
-   in your dev PDI. End state: `tools/probe_open_chat.ps1` returns a routed
-   `IMS#######` and your test agent gets a chat invite in their Inbox.
+   in your dev PDI. End state: a `POST` to the scripted REST `/open_chat`
+   endpoint returns a routed `IMS#######` and your test agent gets a chat
+   invite in their Inbox.
 3. Run the bridge ([`docs/03-bridge-backend.md`](docs/03-bridge-backend.md))
    locally, exposed via a tunnel.
 4. Configure the two Copilot Studio agents and register `teams_a2a` as a Connected Agent on each

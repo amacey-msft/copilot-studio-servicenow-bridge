@@ -205,7 +205,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Reference intranet page (`web/intranet.html`) with self-contained chat
   UI that drives Direct Line directly and switches transparently to the
   ServiceNow rep once a handoff completes.
-- End-to-end smoke-test (`tools/probe_e2e.ps1`).
 - Documentation suite under `docs/`:
   - `01-architecture.md`, `02-servicenow-setup.md`,
     `03-bridge-backend.md`, `04-copilot-studio.md`,
