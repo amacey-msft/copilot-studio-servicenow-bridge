@@ -156,6 +156,42 @@ For production, host the bridge behind a stable HTTPS endpoint
 (App Service, Container Apps, Cloud Run, etc.) and update the sys_property
 exactly once.
 
+## Hosted on Azure Container Apps
+
+The reference deployment of the bridge runs in
+[`cae-cpv`](https://portal.azure.com) (`rg-cpv-aca`) as the container app
+**`ca-cps-bridge`**, image `acrcpvb0c139ea.azurecr.io/bridge:latest`.
+
+Deploy / update with:
+
+```pwsh
+./scripts/deploy-bridge-aca.ps1                  # full ACR build + ACA deploy
+./scripts/deploy-bridge-aca.ps1 -SkipBuild       # update existing image only
+```
+
+The script reads `bridge/.env`, ships the secrets via `--secrets`, sets
+the env vars listed above, runs `/healthz` against the new revision and
+prints the public FQDN.
+
+After deploy, point downstream consumers at the new FQDN:
+
+```pwsh
+# 1. Update bridge/.env
+BRIDGE_PUBLIC_URL=https://ca-cps-bridge.<env-suffix>.eastus2.azurecontainerapps.io
+
+# 2. Patch SN sys_property + any CS HTTP-tool botcomponents in one shot
+./scripts/sync-bridge-url.ps1
+```
+
+### Single-replica caveat
+
+`ca-cps-bridge` runs at `min=max=1`. The bridge keeps session state in
+process memory (`BridgeSession` map), so any new revision (image push,
+env change, secret rotation) drops in-flight live-chat sessions. This is
+acceptable for the current demo workload but blocks horizontal scaling
+and zero-downtime deploys. See **Persistence** below for the planned
+fix.
+
 ## Persistence
 
 The reference `BridgeSession` store is in-memory. That's fine for one

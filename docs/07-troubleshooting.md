@@ -247,3 +247,63 @@ your container.
 
 `devtunnel list` shows the tunnel ID; the URL slug only appears in the
 hostname. Don't confuse them. See [`scripts/devtunnel-README.md`](../scripts/devtunnel-README.md).
+
+## Azure Container Apps (`ca-cps-bridge`)
+
+### Bridge env var or secret change isn't visible in the running container
+
+**Symptom:** `az containerapp secret set` returns success, you restart
+the revision, but the new value isn't picked up.
+
+**Cause:** Restarting an existing revision does not re-resolve
+`secretref:` env bindings. Containers cache the secret value at start.
+
+**Fix:** Force a brand-new revision:
+
+```pwsh
+az containerapp update -n ca-cps-bridge -g rg-cpv-aca `
+  --revision-suffix "v$(Get-Date -Format MMddHHmm)"
+az containerapp revision list -n ca-cps-bridge -g rg-cpv-aca `
+  --query "[?properties.active]" -o table
+```
+
+Confirm the new revision is `Healthy`, traffic is `100`, and the old
+revision has drained before retesting.
+
+### Deploy script complains about metacharacters in a secret value
+
+**Symptom:** `deploy-bridge-aca.ps1` warns that one of the SN_* values
+contains characters in `[&}%<>|^]` and routes that secret through a
+temporary `.cmd` file.
+
+**Cause:** The `az.cmd` Windows wrapper hands its arguments to
+`cmd.exe`, which interprets `}` `&` `%` etc. as command separators —
+the secret value gets truncated mid-string and the resulting key is
+silently wrong.
+
+**Fix:** Already handled: the deploy script writes a single-line
+`.cmd` file under `$env:TEMP`, runs it via `cmd /c`, then re-applies
+the env-var binding `SN_PASSWORD=secretref:sn-password`. Verify after
+deploy with:
+
+```pwsh
+az containerapp secret list -n ca-cps-bridge -g rg-cpv-aca -o table
+az containerapp show -n ca-cps-bridge -g rg-cpv-aca `
+  --query "properties.template.containers[0].env" -o json
+```
+
+### Live-chat sessions vanish after a deploy
+
+**Symptom:** Browser users sitting in `state=live` get bumped back to
+the bot or see the chat freeze immediately after a new revision goes
+active.
+
+**Cause:** `ca-cps-bridge` runs at `min=max=1` and the bridge holds
+session state in process memory (`BridgeSession` map). Any revision
+swap (image push, env change, secret rotation) is a hard restart and
+loses every in-flight session.
+
+**Fix:** Accept it for the demo workload — schedule deploys around
+known idle windows. Long-term, externalise state to Redis (see
+[`09-production-hardening.md`](09-production-hardening.md) → "Bridge
+state externalisation").

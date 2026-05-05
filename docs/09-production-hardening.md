@@ -36,6 +36,11 @@ beyond a dev PDI.
       - `interaction_sys_id`, `interaction_number`
       - `conversation_sys_id`, `sn_user_sys_id`
       - `user_email`, `user_display_name`, `rep_name`
+
+      *Status:* the bridge runs on Azure Container Apps as
+      `ca-cps-bridge` pinned to `min=max=1` exactly because of this.
+      Externalising state is the prerequisite to scaling out and to
+      zero-downtime deploys.
 - [ ] **Constant-time secret comparison.** Replace
       `secret == SN_WEBHOOK_SECRET` with `hmac.compare_digest(...)`.
       Same for `AGENT_API_SECRET`.

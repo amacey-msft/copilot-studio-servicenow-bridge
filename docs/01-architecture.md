@@ -16,8 +16,10 @@
                               │   (your existing topics)   │
                               └─────────────┬──────────────┘
                                             │
-                  (2) Escalate topic fires  │
-                      → HTTP request action │
+                  (2) Escalate topic        │
+                      delegates to teams_a2a│
+                      Connected Agent       │
+                      → POST /api/messages  │
                                             ▼
                 ┌──────────────────────────────────────────────┐
                 │  Flask bridge   (this repo: bridge/)        │
@@ -72,12 +74,25 @@ WebSocket (`/ws/intranet/<sid>`) with HTTP polling
 (`/api/servicenow/poll/<sid>`) as a fallback for hosts where the WS can't
 get through.
 
-### 2. Copilot Studio (your existing agent + new Escalate topic)
+### 2. Copilot Studio (existing agent + Escalate topic + Connected Agent)
 
-You add a single topic that fires when the user wants a human. It does an
-HTTP `POST` to the bridge with the user's bridge session id (passed through
-as the Direct Line `User.Id`) and a one-line summary of why they're
-escalating.
+You register **`teams_a2a`** as a Connected Agent on the agent
+(“Add an agent → A2A (Bring your own)”, endpoint = the
+`ca-cps-sn-skill` ACA app, no auth). The system Escalate topic is then
+edited to delegate to that Connected Agent. The orchestrator routes
+“talk to a person”-style turns to it based on the agent’s description.
+`teams_a2a` is what actually calls the bridge — the CS agent never
+calls the bridge directly any more.
+
+The two CS agents in this repo:
+
+| Agent | Auth | Channel |
+| ----- | ---- | ------- |
+| `awm_contosoithelp` | None (anonymous DL) | Web (intranet kiosk) |
+| `crd20_itHelpDeskTriageAssistant` | Entra Agent ID | Teams (CS native channel) |
+
+Both point at the same `teams_a2a` Connected Agent. See
+[`04-copilot-studio.md`](04-copilot-studio.md) for the per-agent setup.
 
 ### 3. Flask bridge (`bridge/`)
 

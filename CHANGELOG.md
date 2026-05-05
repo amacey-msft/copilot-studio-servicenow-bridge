@@ -6,18 +6,66 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Bridge hosted on Azure Container Apps** as `ca-cps-bridge` in the
+  `cae-cpv` environment / `rg-cpv-aca` resource group. Image
+  `acrcpvb0c139ea.azurecr.io/bridge:latest`. Stable HTTPS URL replaces
+  the laptop-bound dev tunnel for any non-local consumers (ServiceNow
+  outbound webhook, Copilot Studio HTTP tools).
+- `scripts/deploy-bridge-aca.ps1` — full ACR build + ACA create/update
+  with secrets sourced from `bridge/.env`. Runs `/healthz` smoke check
+  on the new revision before reporting success.
+- **Caveats:** the ACA app runs `min=max=1` because the bridge holds
+  session state in process memory. Any revision swap (image push or
+  secret rotation) drops active live-chat sessions. Externalising state
+  to Redis is tracked as a follow-up. The local Docker compose stack
+  remains for development only.
+
 ### Changed
-- **Unified handoff path:** the web channel now uses the same Copilot
-  Studio agent (`crd20_itHelpDeskTriageAssistant`) as the Teams channel.
-  Browser hits the bridge's `/directline/token` relay; bridge mints a
-  DL token against the unified agent. Escalation on every channel runs
-  through the **Connected Agent** wrapping `teams_a2a/api/messages`.
-- The Bot Framework Skill registration on the same `/api/messages`
-  endpoint was **removed**. It only worked on classic-app-reg agents,
-  not Entra Agent ID, and consistently failed with
+- **Two-CS-agent topology, unified handoff backend.** The web kiosk
+  and the Teams channel run on **separate** Copilot Studio agents
+  because they have incompatible auth requirements:
+  - Web (`web/intranet.html`) → `awm_contosoithelp`, **anonymous**
+    Direct Line via the CS-hosted token endpoint
+    `https://<env-host>.environment.api.powerplatform.com/powervirtualagents/botsbyschema/awm_contosoithelp/directline/token?api-version=2022-03-01-preview`.
+    Suitable for unauthenticated kiosks.
+  - Teams → `crd20_itHelpDeskTriageAssistant`, **Entra Agent ID**
+    auth via CS's native Teams channel.
+
+  Both agents register the same `teams_a2a` deployment
+  (`ca-cps-sn-skill` ACA app) as an A2A **Connected Agent**, and both
+  Escalate system topics delegate to it. Result: one shared handoff
+  backend, one shared bridge, one shared ServiceNow integration; only
+  the per-channel auth model differs. The earlier attempt to unify
+  on a single CS agent was reverted because Entra Agent ID forces an
+  MSAL sign-in in the browser.
+- **Web channel escalation now uses the Connected Agent path** (same
+  as Teams). The legacy "Escalate topic + Send an HTTP request"
+  pattern was removed from `awm_contosoithelp`. The Connected Agent
+  owns the conversation for the duration of the live chat and pushes
+  CSR replies back into CS via the signed `serviceUrl` proactive POST,
+  so reps render *as the CS agent* without any client-side mode
+  switching.
+- `bridge/.env.sample` `POWERPLATFORM_BOT_SCHEMA` corrected to
+  `awm_contosoithelp` (was previously left pointing at the unified
+  `crd20_itHelpDeskTriageAssistant`, so `sync-bridge-url.ps1` was
+  looking for HTTP-tool botcomponents under the wrong schema and
+  silently skipping them).
+- The Bot Framework Skill registration on `teams_a2a /api/messages`
+  was **removed**. It only worked on classic-app-reg agents, not
+  Entra Agent ID, and consistently failed with
   `SkillNotSuccesfulResponseCode` / `401 Unauthorized` on the
-  `pvaruntime/skillsV2` callback. Confirmed in production 2026-05-04;
-  see [`docs/v3-skill-pattern-rejected.md`](docs/v3-skill-pattern-rejected.md).
+  `pvaruntime/skillsV2` callback. See
+  [`docs/v3-skill-pattern-rejected.md`](docs/v3-skill-pattern-rejected.md).
+
+### Documentation
+- Two-agent + Connected Agent topology now reflected throughout
+  `docs/00-architecture-overview.md`, `docs/01-architecture.md`,
+  `docs/04-copilot-studio.md` (full rewrite),
+  `docs/10-teams-channel-overview.md`,
+  `docs/14-teams-a2a-setup.md`, and the top-level `README.md`.
+  The interim planning note `docs/v2-web-connected-agent-followup.md`
+  was removed (work landed).
 
 ### Removed
 - `teams_a2a/IT Help Desk Triage Assistant/skills/ServiceNowLiveAgentHandoffSkill.mcs.yml`

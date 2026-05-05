@@ -31,6 +31,17 @@ talk to the same bridge (`bridge/`) and the same ServiceNow setup
 > channels now use the supported SDK. See "Why `teams_bot/` was
 > dropped" below for the rationale.
 
+### Deployment topology
+
+| Component | Hosting | Notes |
+| --------- | ------- | ----- |
+| `bridge/` | **Azure Container Apps** — `ca-cps-bridge` in `cae-cpv` (`rg-cpv-aca`) | Stable HTTPS endpoint reached by SN outbound BR, browser DL token relay, and `teams_a2a` push-back. Pinned `min=max=1` (in-memory session map). See [`03-bridge-backend.md`](03-bridge-backend.md). |
+| `teams_a2a/` | **Azure Container Apps** — `ca-cps-sn-skill` in `cae-cpv` | Name is historical from the rejected v3 skill spike; kept stable so the CS A2A "Add an agent" registration doesn't have to be reissued. Renaming tracked as a follow-up. |
+| `teams_agent/` | Local container (dev) / dev tunnel | Deprecated path; kept for the Genesys-style handoff reference implementation. |
+| Copilot Studio agent (web) | Microsoft-hosted (Power Platform) | `awm_contosoithelp` — anonymous DL token, serves the browser kiosk via the bridge's `/directline/token` proxy. |
+| Copilot Studio agent (Teams) | Microsoft-hosted (Power Platform) | `crd20_itHelpDeskTriageAssistant` — Entra Agent ID auth, serves the Teams channel natively. |
+| Connected Agent on both | n/a (registration) | `teams_a2a` (the `ca-cps-sn-skill` ACA app) is registered as an A2A Connected Agent on **both** CS agents and owns the live-chat handoff for both surfaces. |
+
 ## Why two Teams channels?
 
 They solve the same business problem — "let a Teams user chat with the
@@ -61,32 +72,54 @@ the hose.
 ```
 +-----------------+       (1) Direct Line (browser)        +----------------+
 |  intranet.html  |  <----------------------------------> | Copilot Studio |
-|  WebChat widget |                                        | (DL channel)   |
+|  WebChat widget |                                        | awm_contoso... |
 +--------+--------+                                        +--------+-------+
-         |                                                          |
-         | (2) /api/servicenow/agent/escalate (HTTP from CS topic)  |
-         | (3) /api/servicenow/user-message (HTTP from page JS)     |
-         | (4) WebSocket / poll for rep replies                     |
-         v                                                          v
-+----------------------------------------------------------------------+
-|                      Flask bridge (servicenow_bridge.py)             |
-|   BridgeSession state (BOT -> QUEUED -> LIVE -> CLOSED)              |
-|   /directline/token (mints CS DL token, binds session id as user.id) |
-+--------+-------------------------------------------------------------+
-         |
-         | sn_open_chat / sn_send_message (Scripted REST)
-         v
+         ^                                                          |
+         |                              (2) Escalate / "talk to     |
+         |                                  a person" turn          |
+         |                                  dispatched to A2A       |
+         |                                  Connected Agent         |
+         |                                                          v
+         |                              +-----------------------------+
+         |                              | teams_a2a (ca-cps-sn-skill) |
+         |                              | A2A endpoint /api/messages  |
+         |                              +-------+---------------------+
+         |                                      |
+         |                                      | (3) /api/servicenow/agent/escalate
+         |                                      | (4) subsequent /user-message turns
+         | (5) WebSocket / poll                 v
+         |     for status only           +----------------------------+
+         +------------------------------ | Flask bridge (ca-cps-bridge)|
+                                         | BridgeSession (BOT -> LIVE) |
+                                         | /directline/token (CS DL)   |
+                                         +-------+--------------------+
+                                                 |
+                                                 | sn_open_chat / sn_send_message
+                                                 v
 +----------------------+      sys_cs_message BR (async)     +-----------+
 | ServiceNow AWA queue | ---------------------------------> | bridge    |
 | + CSR in SOW pane    |  POST /api/servicenow/webhook      | webhook   |
-+----------------------+                                    +-----------+
++----------------------+                                    +-----+-----+
+                                                                  |
+                                       proactive POST to the      |
+                                       signed CS serviceUrl       v
+                                                            +-----------+
+                                                            | teams_a2a |
+                                                            | -> CS     |
+                                                            | -> user   |
+                                                            +-----------+
 ```
 
-**Key property.** Single browser tab, single conversation. The page JS
-flips between "talking to bot" and "talking to rep" *client-side* based
-on `state` payloads pushed by the bridge. The Direct Line token's
-`user.id` is the bridge's session id, so CS can pass it back through
-the Escalate HTTP tool as the correlation key.
+**Key property.** Single browser tab, single conversation. CS owns the
+full transcript; rep replies render *as the CS agent* via the Connected
+Agent's proactive push. The page JS no longer flips local "live" mode
+on user input — every user turn goes back through CS, which the
+orchestrator routes to the Connected Agent for the duration of the
+live chat. The browser still subscribes to bridge `state` events for
+status-line updates ("Connecting…" / "Chatting with Alex").
+
+The Direct Line token's `user.id` is the bridge's session id, so the
+Connected Agent can correlate CS turns to a `BridgeSession`.
 
 See [`05-browser-webchat.md`](05-browser-webchat.md) for the page-side
 state machine.

@@ -26,7 +26,7 @@ updates instantly.
 | [`docs/01-architecture.md`](docs/01-architecture.md)             | Architecture, data flow, why each piece exists.              |
 | [`docs/02-servicenow-setup.md`](docs/02-servicenow-setup.md)     | Step-by-step ServiceNow web UI setup. The big one.           |
 | [`docs/03-bridge-backend.md`](docs/03-bridge-backend.md)         | Flask bridge: env vars, endpoints, deployment.               |
-| [`docs/04-copilot-studio.md`](docs/04-copilot-studio.md)         | Wiring the Copilot Studio Escalate topic to call the bridge. |
+| [`docs/04-copilot-studio.md`](docs/04-copilot-studio.md)         | Two CS agents (web=`awm_contosoithelp` unauth, Teams=`crd20_itHelpDeskTriageAssistant` Entra Agent ID) and the shared A2A Connected Agent. |
 | [`docs/05-browser-webchat.md`](docs/05-browser-webchat.md)       | Browser-side state machine and reference snippets.           |
 | [`docs/06-end-to-end-test.md`](docs/06-end-to-end-test.md)       | Verification probe and what success looks like.              |
 | [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md)       | Symptom → cause → fix table built from the dead ends.        |
@@ -49,22 +49,22 @@ updates instantly.
    `IMS#######` and your test agent gets a chat invite in their Inbox.
 3. Run the bridge ([`docs/03-bridge-backend.md`](docs/03-bridge-backend.md))
    locally, exposed via a tunnel.
-4. Configure your Copilot Studio Escalate topic
-   ([`docs/04-copilot-studio.md`](docs/04-copilot-studio.md)) to POST to the
-   bridge.
+4. Configure the two Copilot Studio agents and register `teams_a2a` as a Connected Agent on each
+   ([`docs/04-copilot-studio.md`](docs/04-copilot-studio.md)).
 5. Run the end-to-end probe in [`docs/06-end-to-end-test.md`](docs/06-end-to-end-test.md).
 
-## Important: the bridge must be reachable from ServiceNow and from Copilot Studio
+## Important: the bridge must be reachable from ServiceNow and from `teams_a2a`
 
-ServiceNow's outbound Business Rule and Copilot Studio's HTTP action both
-call the bridge over the public internet. Localhost won't work. You need
-**one HTTPS URL** (call it `BRIDGE_PUBLIC_URL`) that points at the bridge,
-and you set it in three places:
+ServiceNow's outbound Business Rule POSTs the bridge directly. The CS
+Connected Agent (`teams_a2a`, hosted as `ca-cps-sn-skill` on ACA) calls
+the bridge from its own ACA app. Localhost won't work.
+You need **one HTTPS URL** (call it `BRIDGE_PUBLIC_URL`) that points at
+the bridge, and you set it in three places:
 
 | Where                                  | What                                                     |
 | -------------------------------------- | -------------------------------------------------------- |
 | ServiceNow `sys_property` `intranet_bridge.outbound_webhook_url` | `<BRIDGE_PUBLIC_URL>/api/servicenow/webhook` |
-| Copilot Studio Escalate topic HTTP action URL                    | `<BRIDGE_PUBLIC_URL>/api/servicenow/agent/escalate` |
+| `teams_a2a` env var `BRIDGE_INTERNAL_URL` | `<BRIDGE_PUBLIC_URL>` |
 | The browser (intranet page)                                      | Served from the same origin so relative paths work, **or** updated to use the absolute `<BRIDGE_PUBLIC_URL>`. |
 
 For local development a VS Code Dev Tunnel works fine. Helper
@@ -109,6 +109,26 @@ Copilot Studio HTTP action URL.
 For anything beyond local dev, host the bridge on a real platform
 (Azure App Service, Azure Container Apps, Cloud Run, Fly.io, etc.) and
 use that platform's HTTPS URL.
+
+### Hosted reference deployment (Azure Container Apps)
+
+The reference deployment runs the bridge as **`ca-cps-bridge`** in the
+`cae-cpv` Container Apps environment (`rg-cpv-aca`). One-shot deploy
+from a populated `bridge/.env`:
+
+```powershell
+.\scripts\deploy-bridge-aca.ps1                  # full ACR build + ACA deploy
+.\scripts\deploy-bridge-aca.ps1 -SkipBuild       # update existing image only
+```
+
+After the script reports `Healthy`, set
+`BRIDGE_PUBLIC_URL=https://ca-cps-bridge.<env-suffix>.eastus2.azurecontainerapps.io`
+in `bridge/.env` and re-run `.\scripts\sync-bridge-url.ps1` to point
+ServiceNow + Copilot Studio at the new host.
+
+The app is pinned to `min=max=1` because the bridge holds session
+state in memory — see [`docs/03-bridge-backend.md`](docs/03-bridge-backend.md#single-replica-caveat)
+and [`docs/09-production-hardening.md`](docs/09-production-hardening.md).
 
 If anything goes sideways, jump to
 [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md) — every entry in
