@@ -30,10 +30,10 @@ secret_*
 
 # Local doc/diagram render artifacts (only the rendered PNG is committed)
 docs/_build/
-docs/00-architecture-overview.md
 docs/00-architecture-overview.pdf
-tools/render_architecture_pdf.py
-tools/render_flow_diagram.py
+
+# Local-only dev/probe scripts (kept out of the repo)
+tools/
 
 # Scratch / one-off files
 logs*.txt
