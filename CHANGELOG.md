@@ -27,9 +27,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Agent ID** auth, which forces the browser through MSAL sign-in. The
   intranet kiosk page is anonymous-by-design, so `DIRECTLINE_TOKEN_ENDPOINT`
   has been blanked on `ca-cps-bridge` and the `/directline/token` route
-  falls back to `DIRECTLINE_SECRET` (Bot Framework Direct Line channel
-  on the original web-only agent). To re-unify later, either add MSAL
-  to `web/intranet.html` or republish the agent without Entra auth.
+  falls back to `DIRECTLINE_SECRET` — the Bot Framework Direct Line
+  channel on **`Contoso IT Help` (`awm_contosoithelp`)**, the original
+  unauthenticated web-only agent. To re-unify later, either add MSAL
+  to `web/intranet.html` or republish the unified agent without Entra
+  auth.
+- `POWERPLATFORM_BOT_SCHEMA` in `bridge/.env.sample` corrected to
+  `awm_contosoithelp` (was previously left pointing at the unified
+  `crd20_itHelpDeskTriageAssistant`, so `sync-bridge-url.ps1` was
+  looking for HTTP-tool botcomponents under the wrong schema and
+  silently skipping them — the awm tools were left pointing at the
+  decommissioned dev tunnel until this fix). Re-ran sync after fix;
+  `EscalateToLiveITAgent` and `CreateServiceNowIncident` URLs now
+  resolve to `ca-cps-bridge` and the agent has been republished via
+  the Dataverse `PvaPublish` action.
+
+### Documentation
+- Added [`docs/v2-web-connected-agent-followup.md`](docs/v2-web-connected-agent-followup.md)
+  describing the planned migration of the web channel onto the same
+  Connected Agent pattern that the Teams channel already uses
+  (`teams_a2a` registered as an A2A agent on `awm_contosoithelp`).
 
 ### Changed
 - **Unified handoff path:** the web channel now uses the same Copilot
