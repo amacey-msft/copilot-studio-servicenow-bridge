@@ -1,4 +1,4 @@
-# 07 — Troubleshooting
+# 07 â€” Troubleshooting
 
 Every entry below is a real failure mode encountered while building this
 integration. They are grouped by where the symptom shows up.
@@ -23,7 +23,7 @@ Either:
 ### `/open_chat` returns 200, work_item exists, but the agent never gets a chat invite
 
 - Agent isn't **Available** in AWA presence at this moment.
-- Agent has no `awa_agent_capacity` row for the `Chat` channel — they need
+- Agent has no `awa_agent_capacity` row for the `Chat` channel â€” they need
   to sign in to Agent Workspace and toggle Available once.
 - Agent isn't a member of the queue's eligible group.
 - Wrong queue / channel sys_id passed to `/open_chat`.
@@ -54,16 +54,16 @@ The Virtual Agent timeout (~3 minutes idle by default) closed the
 conversation server-side. The reference script bumps
 `sys_cs_session_binding.last_client_activity_time` on every send to
 prevent this, but if a user genuinely went idle for 3+ minutes the chat
-is gone — open a new one via `/open_chat`.
+is gone â€” open a new one via `/open_chat`.
 
 ### Consumer's avatar in SOW shows as `IB` (intranet.bridge) instead of e.g. `AE`
 
 `GlideImpersonate` failed silently because `intranet.bridge` lacks the
-`impersonator` role. Cosmetic only — the message still arrives. Either
+`impersonator` role. Cosmetic only â€” the message still arrives. Either
 grant the role (and accept the security implications) or live with the
 placeholder avatar.
 
-## Bridge ↔ ServiceNow
+## Bridge â†” ServiceNow
 
 ### Outbound BR logs `HTTP 403 forbidden`
 
@@ -89,14 +89,14 @@ The BR fired and reached the bridge, but the bridge's in-memory
 `BridgeSession` store doesn't contain that `bridge_session_id`. Causes:
 
 - The bridge was restarted between session creation and the agent's
-  reply. (Fix: persist sessions outside the process — see
+  reply. (Fix: persist sessions outside the process â€” see
   [`09-production-hardening.md`](09-production-hardening.md).)
 - You called `/open_chat` directly with a synthetic `bridge_session_id`
   the bridge has no record of. Expected behaviour for that smoke test.
 - Two bridge instances behind a load balancer without sticky sessions and
   without shared session storage.
 
-## Bridge ↔ browser
+## Bridge â†” browser
 
 ### Browser receives `status: queued` but never `status: live`
 
@@ -105,7 +105,7 @@ The BR fired and reached the bridge, but the bridge's in-memory
 - Agent accepted but the auto-greeting BR didn't fire (check System Logs
   for `intranet_bridge.outbound` entries). The bridge transitions to
   `live` on the first agent message OR an explicit `event: claimed`
-  webhook — the reference setup uses the first message path.
+  webhook â€” the reference setup uses the first message path.
 
 ### Browser is stuck in `queued` even though Alex accepted
 
@@ -121,7 +121,7 @@ isn't running. Verify:
 
 You're rendering both WS frames *and* polled events. The reference
 implementation drains the poll queue after every poll, so each event is
-delivered exactly once across both channels combined — but if you
+delivered exactly once across both channels combined â€” but if you
 modified the bridge to keep events in the queue, the client must
 deduplicate.
 
@@ -133,13 +133,13 @@ deduplicate.
 - Missing or wrong `X-Agent-Secret` header. Check
   `AGENT_API_SECRET` matches the bridge's env.
 - Body JSON is malformed. The Copilot Studio body editor sometimes
-  inserts smart quotes — make sure all quotes are plain `"`.
+  inserts smart quotes â€” make sure all quotes are plain `"`.
 
 ### Bridge returns 404 "unknown session"
 
 Your topic is passing `{x:User.Id}` but the browser didn't use the bridge
 session id as the Direct Line user id. See
-[`05-browser-webchat.md`](05-browser-webchat.md) §1: the
+[`05-browser-webchat.md`](05-browser-webchat.md) Â§1: the
 `/directline/token` request must include `{ user_id: <session_id> }` and
 every `directLine.postActivity` call must include `from: { id: session_id }`.
 
@@ -147,89 +147,20 @@ every `directLine.postActivity` call must include `from: { id: session_id }`.
 
 If you're using **classic** orchestration, add explicit trigger phrases.
 If you're using **generative** orchestration, the *Description* field is
-what the orchestrator uses — make it specific (mention "human", "agent",
+what the orchestrator uses â€” make it specific (mention "human", "agent",
 "live person", "support rep").
 
 ## Tools that helped diagnose these
 
-- **System Logs → All** with filter `Message contains intranet_bridge`
+- **System Logs â†’ All** with filter `Message contains intranet_bridge`
   (BR script logs land here).
 - **`awa_work_item` table list** filtered to your `interaction_sys_id`
   (proves AWA actually created a routing item).
 - **Network tab in Edge DevTools** on the webchat page (catches missing
   `X-Bridge-Secret`, malformed bodies, CORS).
 - **`docker logs -f <bridge container>`** (or whatever process supervisor
-  you use) — most issues surface here within a few seconds of the root
+  you use) â€” most issues surface here within a few seconds of the root
   cause.
-
-## Teams: bot stops responding after I cleared the conversation
-
-**Symptom:** You used the live-chat handoff, the CSR ended (or just
-walked away), then later you "Clear conversation" in Teams, reopen, and
-the bot ignores your messages. Bridge logs show
-`[webhook] dropping user-text echo for session=… text='…'`.
-
-**Cause:** Teams "Clear conversation" is client-only. The bridge still
-has your `BridgeSession` in `state=live` and forwards every new turn to
-the dead ServiceNow `interaction`. The webhook drops the message as a
-duplicate of itself.
-
-**Fix:**
-
-1. **As a user:** type `new` (or `reset`, `restart`, `start over`). The
-   agent calls `/api/teams/reset-session` and the next turn allocates a
-   fresh bot session.
-2. **Automatic:** the bridge recycles a stale `live` session on the next
-   `init-session` call once it's been idle for `TEAMS_LIVE_IDLE_RECYCLE_S`
-   seconds (default **900s** / 15 min). Tune via env var.
-
-See `teams_agent/README.md` → "User commands" and
-"Session auto-recycle" for the full list of reset phrases and recycle
-thresholds.
-
-## Teams (Agents SDK): Copilot Studio escalate tool returns "session not found"
-
-**Symptom:** The CS Escalate topic fires (you see the typing indicator,
-the "Connecting you with a live agent..." message), but no SN
-interaction is created. Bridge logs show
-`[agent] escalate hit ... body={"session_id":"<UUID>", ...}` followed by
-no further log lines (silent 404 from `_get_session`).
-
-**Cause:** Direct Line rewrites `from.id` on every user activity to the
-`user` claim encoded in the DL token (a UUID minted by Copilot Studio
-when the token endpoint is hit). CS then surfaces *that* UUID as
-`System.Activity.From.Id` inside topics. The CS Escalate HTTP tool
-typically passes `session_id: System.Activity.From.Id`, so the bridge
-receives a CS-minted UUID it has never seen, not the hex sid it
-allocated for the user.
-
-**Fix:** The agent decodes the DL token JWT after each mint and
-registers the `dl_user_id -> sid` mapping via
-`POST /api/teams/map-dl-user`. The bridge falls back to that reverse
-index when the direct sid lookup fails. If you see this symptom on a
-fresh deploy, verify:
-
-1. `teams_agent/dl.py` `_decode_dl_user_id()` is being called (look for
-   `[teams] map-dl-user dl=… -> sid=…` in bridge logs after each new
-   conversation).
-2. The agent container can reach the bridge over `BRIDGE_INTERNAL_URL`
-   (the mapping is registered via that URL).
-3. The CS escalate tool's `session_id` parameter is bound to
-   `System.Activity.From.Id` (or a stable user id you also send via
-   `channelData`), not to a per-turn activity id.
-
-## Teams (Agents SDK): bot ignores messages with newlines
-
-**Symptom:** Single-line text like "hi" works; multi-line text (paste
-from Outlook etc.) gets a typing indicator but no reply. Logs show the
-activity arriving at `/api/messages` but no handler firing.
-
-**Cause:** `@app.message(re.compile(".*"))` is a regex catch-all that
-silently fails to match text containing newlines because Python's `.`
-doesn't match `\n` without `re.DOTALL`.
-
-**Fix:** Use `@app.activity("message")` instead. Already applied in
-`teams_agent/app.py`; do not reintroduce the regex form.
 
 ## Devtunnels: ID vs slug confusion
 
@@ -277,7 +208,7 @@ contains characters in `[&}%<>|^]` and routes that secret through a
 temporary `.cmd` file.
 
 **Cause:** The `az.cmd` Windows wrapper hands its arguments to
-`cmd.exe`, which interprets `}` `&` `%` etc. as command separators —
+`cmd.exe`, which interprets `}` `&` `%` etc. as command separators â€”
 the secret value gets truncated mid-string and the resulting key is
 silently wrong.
 
@@ -303,7 +234,7 @@ session state in process memory (`BridgeSession` map). Any revision
 swap (image push, env change, secret rotation) is a hard restart and
 loses every in-flight session.
 
-**Fix:** Accept it for the demo workload — schedule deploys around
+**Fix:** Accept it for the demo workload â€” schedule deploys around
 known idle windows. Long-term, externalise state to Redis (see
-[`09-production-hardening.md`](09-production-hardening.md) → "Bridge
+[`09-production-hardening.md`](09-production-hardening.md) â†’ "Bridge
 state externalisation").

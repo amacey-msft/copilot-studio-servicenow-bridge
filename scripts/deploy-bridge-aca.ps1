@@ -64,8 +64,6 @@ try {
     $snDefaultUser           = Get-Env 'SN_DEFAULT_USER_SYS_ID'
     $snDefaultQueue          = Get-Env 'SN_DEFAULT_QUEUE_SYS_ID'
     $snDefaultChannel        = Get-Env 'SN_DEFAULT_CHANNEL_SYS_ID'
-    $teamsAgentPushUrl       = Get-Env 'TEAMS_AGENT_PUSH_URL'
-    $teamsAgentPushSecret    = Get-Env 'TEAMS_AGENT_PUSH_SECRET'
 
     foreach ($pair in @(
         @('SN_INSTANCE',    $snInstance),
@@ -77,7 +75,7 @@ try {
             Write-Host "==> WARNING: $($pair[0]) is empty in $EnvFile" -ForegroundColor Yellow
         }
     }
-    foreach ($name in @('SN_PASSWORD','SN_WEBHOOK_SECRET','AGENT_API_SECRET','DIRECTLINE_SECRET','TEAMS_AGENT_PUSH_SECRET')) {
+    foreach ($name in @('SN_PASSWORD','SN_WEBHOOK_SECRET','AGENT_API_SECRET','DIRECTLINE_SECRET')) {
         $v = Get-Env $name
         if ($v -match '[&}%]') {
             Write-Host "==> WARNING: $name contains shell metachars (& } %); az CLI may truncate." -ForegroundColor Yellow
@@ -112,8 +110,7 @@ try {
     $secrets = @(
         "directline-secret=$directlineSecret",
         "sn-webhook-secret=$snWebhookSecret",
-        "agent-api-secret=$agentApiSecret",
-        "teams-agent-push-secret=$teamsAgentPushSecret"
+        "agent-api-secret=$agentApiSecret"
     )
     # SN_PASSWORD is set separately via a .cmd file because PowerShell + az.cmd
     # mishandle '}' '&' '%' inside argument values (the az.cmd wrapper hands
@@ -135,8 +132,6 @@ try {
         "SN_DEFAULT_USER_SYS_ID=$snDefaultUser",
         "SN_DEFAULT_QUEUE_SYS_ID=$snDefaultQueue",
         "SN_DEFAULT_CHANNEL_SYS_ID=$snDefaultChannel",
-        "TEAMS_AGENT_PUSH_URL=$teamsAgentPushUrl",
-        "TEAMS_AGENT_PUSH_SECRET=secretref:teams-agent-push-secret",
         "PORT=5000"
     )
 
