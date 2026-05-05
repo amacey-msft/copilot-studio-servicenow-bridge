@@ -21,6 +21,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   to Redis is tracked as a follow-up. The local Docker compose stack
   remains for development only.
 
+### Reverted
+- **Web channel back on the original (unauthenticated) agent.** The
+  unified `crd20_itHelpDeskTriageAssistant` is published with **Entra
+  Agent ID** auth, which forces the browser through MSAL sign-in. The
+  intranet kiosk page is anonymous-by-design, so `DIRECTLINE_TOKEN_ENDPOINT`
+  has been blanked on `ca-cps-bridge` and the `/directline/token` route
+  falls back to `DIRECTLINE_SECRET` (Bot Framework Direct Line channel
+  on the original web-only agent). To re-unify later, either add MSAL
+  to `web/intranet.html` or republish the agent without Entra auth.
+
 ### Changed
 - **Unified handoff path:** the web channel now uses the same Copilot
   Studio agent (`crd20_itHelpDeskTriageAssistant`) as the Teams channel.
