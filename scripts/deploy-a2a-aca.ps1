@@ -1,7 +1,13 @@
 # Deploy teams_a2a (v3 spike) to Azure Container Apps.
 #
 # Reuse existing ACA environment + ACR from the rg-cpv-aca resource group.
-# Skill app name: ca-cps-sn-skill.
+#
+# NOTE: ACA app name `ca-cps-sn-skill` is HISTORICAL — left over from the
+# rejected Bot Framework Skill spike (see docs/v3-skill-pattern-rejected.md).
+# The container actually hosts the A2A Connected Agent. Renaming would
+# change the FQDN, which is wired into the CS A2A "Add an agent" endpoint
+# and would require republishing the agent. Tracked as a follow-up;
+# planned in a separate PR after feat/aca-bridge-hosting merges.
 #
 # Usage:
 #   ./scripts/deploy-skill-aca.ps1                  # full build + push + deploy

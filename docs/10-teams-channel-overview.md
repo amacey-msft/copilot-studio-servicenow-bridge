@@ -31,6 +31,15 @@ talk to the same bridge (`bridge/`) and the same ServiceNow setup
 > channels now use the supported SDK. See "Why `teams_bot/` was
 > dropped" below for the rationale.
 
+### Deployment topology
+
+| Component | Hosting | Notes |
+| --------- | ------- | ----- |
+| `bridge/` | **Azure Container Apps** — `ca-cps-bridge` in `cae-cpv` (`rg-cpv-aca`) | Stable HTTPS endpoint reached by SN outbound BR, browser DL token relay, and `teams_a2a` push-back. Pinned `min=max=1` (in-memory session map). See [`03-bridge-backend.md`](03-bridge-backend.md). |
+| `teams_a2a/` | **Azure Container Apps** — `ca-cps-sn-skill` in `cae-cpv` | Name is historical from the rejected v3 skill spike; kept stable so the CS A2A "Add an agent" registration doesn't have to be reissued. Renaming tracked as a follow-up. |
+| `teams_agent/` | Local container (dev) / dev tunnel | Deprecated path; kept for the Genesys-style handoff reference implementation. |
+| Copilot Studio agent | Microsoft-hosted (Power Platform) | Single agent `crd20_itHelpDeskTriageAssistant` serves both web and Teams. |
+
 ## Why two Teams channels?
 
 They solve the same business problem — "let a Teams user chat with the

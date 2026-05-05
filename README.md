@@ -110,6 +110,26 @@ For anything beyond local dev, host the bridge on a real platform
 (Azure App Service, Azure Container Apps, Cloud Run, Fly.io, etc.) and
 use that platform's HTTPS URL.
 
+### Hosted reference deployment (Azure Container Apps)
+
+The reference deployment runs the bridge as **`ca-cps-bridge`** in the
+`cae-cpv` Container Apps environment (`rg-cpv-aca`). One-shot deploy
+from a populated `bridge/.env`:
+
+```powershell
+.\scripts\deploy-bridge-aca.ps1                  # full ACR build + ACA deploy
+.\scripts\deploy-bridge-aca.ps1 -SkipBuild       # update existing image only
+```
+
+After the script reports `Healthy`, set
+`BRIDGE_PUBLIC_URL=https://ca-cps-bridge.<env-suffix>.eastus2.azurecontainerapps.io`
+in `bridge/.env` and re-run `.\scripts\sync-bridge-url.ps1` to point
+ServiceNow + Copilot Studio at the new host.
+
+The app is pinned to `min=max=1` because the bridge holds session
+state in memory — see [`docs/03-bridge-backend.md`](docs/03-bridge-backend.md#single-replica-caveat)
+and [`docs/09-production-hardening.md`](docs/09-production-hardening.md).
+
 If anything goes sideways, jump to
 [`docs/07-troubleshooting.md`](docs/07-troubleshooting.md) — every entry in
 that table is a real failure mode that cost time to diagnose.

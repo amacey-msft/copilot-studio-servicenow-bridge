@@ -1,5 +1,12 @@
 # Local dev tunnel scripts
 
+> **Local development only.** The hosted reference deployment runs the
+> bridge on Azure Container Apps (`ca-cps-bridge` in `cae-cpv`,
+> `rg-cpv-aca`); see [`docs/03-bridge-backend.md`](../docs/03-bridge-backend.md#hosted-on-azure-container-apps).
+> Use the dev tunnel scripts only when you are iterating on bridge
+> code from your laptop and want SN webhooks / Copilot Studio HTTP
+> tools to reach you.
+
 These scripts expose the bridge running in Docker to the public internet
 via Microsoft Dev Tunnels so ServiceNow's outbound webhook (Business
 Rule on `sys_cs_message`) can reach you while you develop locally.

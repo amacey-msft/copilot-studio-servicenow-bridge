@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Bridge hosted on Azure Container Apps** as `ca-cps-bridge` in the
+  `cae-cpv` environment / `rg-cpv-aca` resource group. Image
+  `acrcpvb0c139ea.azurecr.io/bridge:latest`. Stable HTTPS URL replaces
+  the laptop-bound dev tunnel for any non-local consumers (ServiceNow
+  outbound webhook, Copilot Studio HTTP tools).
+- `scripts/deploy-bridge-aca.ps1` — full ACR build + ACA create/update
+  with secrets sourced from `bridge/.env`. Runs `/healthz` smoke check
+  on the new revision before reporting success.
+- **Caveats:** the ACA app runs `min=max=1` because the bridge holds
+  session state in process memory. Any revision swap (image push or
+  secret rotation) drops active live-chat sessions. Externalising state
+  to Redis is tracked as a follow-up. The local Docker compose stack
+  remains for development only.
+
 ### Changed
 - **Unified handoff path:** the web channel now uses the same Copilot
   Studio agent (`crd20_itHelpDeskTriageAssistant`) as the Teams channel.
