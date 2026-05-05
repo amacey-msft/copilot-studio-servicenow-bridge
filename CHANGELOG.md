@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed
+- **`teams_agent/` reference implementation.** The Genesys-style
+  M365 Agents SDK relay (Teams app = bot, server-side handoff
+  driven by a `ServiceNowHandoff` Direct Line custom event) is
+  gone. The Connected Agent (`teams_a2a/`) attached to
+  `awm_contosoithelp` made the CS Escalate topic redirect to the
+  Connected Agent instead of emitting `ServiceNowHandoff`, so
+  `teams_agent/`'s escalate listener became dead code. With
+  `teams_a2a/` covering the Teams handoff via the canonical
+  Connected Agent path, keeping a parallel implementation only
+  added cutover knobs and confusion. Removed:
+  - `teams_agent/` (folder)
+  - `scripts/provision-teams-agent.ps1`,
+    `scripts/teardown-teams-agent.ps1`
+  - `docs/13-teams-agent-setup.md`
+  - Bridge `/api/teams/init-session`, `/api/teams/reset-session`,
+    `/api/teams/map-dl-user` routes
+  - Bridge `_push_to_teams_agent` dispatcher branch
+  - `BridgeSession.channel`, `.teams_user_key`,
+    `.teams_conversation_reference`, `.last_activity_at` fields
+  - `_by_teams_user`, `_by_dl_user` reverse indexes
+  - `TEAMS_AGENT_PUSH_URL`, `TEAMS_AGENT_PUSH_SECRET`,
+    `TEAMS_AGENT_PUSH_TIMEOUT_S`, `TEAMS_SESSION_IDLE_TIMEOUT_S`,
+    `TEAMS_LIVE_IDLE_RECYCLE_S` env vars (and matching wiring in
+    `scripts/deploy-bridge-aca.ps1`)
+
 ### Added
 - **Bridge hosted on Azure Container Apps** as `ca-cps-bridge` in the
   `cae-cpv` environment / `rg-cpv-aca` resource group. Image

@@ -4,32 +4,34 @@ This document is the Teams analogue of [`01-architecture.md`](01-architecture.md
 The web channel architecture in `01` is unchanged; everything below is
 additive.
 
-> **Update 2026-05-04:** the web channel and the `teams_a2a` channel
-> now share **the same Copilot Studio agent** (`crd20_itHelpDeskTriageAssistant`).
-> The browser reaches it via the bridge's Direct Line token relay; the
-> Teams channel reaches it via CS's native Teams channel. Either way,
-> escalation runs through the **Connected Agent** ("ServiceNow Live
-> Agent", A2A) that wraps `teams_a2a/api/messages`. The legacy
-> Bot Framework Skill path was removed — see
-> [`v3-skill-pattern-rejected.md`](v3-skill-pattern-rejected.md).
+> **Update 2026-05-04:** the web channel and the Teams channel now
+> share the **same Copilot Studio handoff path**. The browser reaches
+> Copilot Studio via the bridge's Direct Line token relay; Teams
+> reaches it via CS's native Teams channel. Either way, escalation
+> runs through the **Connected Agent** ("ServiceNow Live Agent",
+> A2A) that wraps `teams_a2a/api/messages`. The legacy Bot Framework
+> Skill path was removed — see
+> [`v3-skill-pattern-rejected.md`](v3-skill-pattern-rejected.md) —
+> and the `teams_agent/` Genesys-style relay was removed once the
+> Connected Agent reached parity (see "Why `teams_agent/` was
+> dropped" below).
 
-## Three channels in this repo
+## Two channels in this repo
 
-The repo ships **one web channel** and **two Teams channels**. They all
-talk to the same bridge (`bridge/`) and the same ServiceNow setup
-(`servicenow/`). Pick whichever fits your front end.
+The repo ships **one web channel** and **one Teams channel**. They
+both talk to the same bridge (`bridge/`) and the same ServiceNow
+setup (`servicenow/`).
 
 | Folder | Channel | SDK / pattern | Setup doc |
 | ------ | ------- | ------------- | --------- |
-| [`web/`](../web/) + [`bridge/`](../bridge/) | Browser webchat | BotFramework WebChat against Copilot Studio Direct Line (same CS agent as `teams_a2a`) | [`05-browser-webchat.md`](05-browser-webchat.md) |
-| [`teams_agent/`](../teams_agent/) | Microsoft Teams (1:1) | **M365 Agents SDK**, Genesys-style server-side handoff | [`13-teams-agent-setup.md`](13-teams-agent-setup.md) |
-| [`teams_a2a/`](../teams_a2a/) | Microsoft Teams (1:1) via Copilot Studio, **also serves the web channel as a Connected Agent** | **M365 Agents SDK** registered with Copilot Studio as an **A2A agent** ("Add an agent" connector) | [`14-teams-a2a-setup.md`](14-teams-a2a-setup.md) |
+| [`web/`](../web/) + [`bridge/`](../bridge/) | Browser webchat | BotFramework WebChat against Copilot Studio Direct Line (CS agent `awm_contosoithelp`) | [`05-browser-webchat.md`](05-browser-webchat.md) |
+| [`teams_a2a/`](../teams_a2a/) | Microsoft Teams (1:1) via Copilot Studio (CS agent `crd20_itHelpDeskTriageAssistant`); also serves the web channel as a Connected Agent | **M365 Agents SDK** registered with Copilot Studio as an **A2A agent** ("Add an agent" connector) | [`14-teams-a2a-setup.md`](14-teams-a2a-setup.md) |
 
-> A previous `teams_bot/` folder built on `botbuilder-python` 4.17.x
-> was removed in v3 because Microsoft put that SDK into maintenance
-> mode and replaced it with `microsoft-agents-*`. Both surviving Teams
-> channels now use the supported SDK. See "Why `teams_bot/` was
-> dropped" below for the rationale.
+> Two predecessor folders were removed in earlier cleanups:
+> - `teams_bot/` (botbuilder-python 4.17.x) — see "Why `teams_bot/`
+>   was dropped" below.
+> - `teams_agent/` (M365 Agents SDK Genesys-style relay) — see "Why
+>   `teams_agent/` was dropped" below.
 
 ### Deployment topology
 
@@ -37,30 +39,23 @@ talk to the same bridge (`bridge/`) and the same ServiceNow setup
 | --------- | ------- | ----- |
 | `bridge/` | **Azure Container Apps** — `ca-cps-bridge` in `cae-cpv` (`rg-cpv-aca`) | Stable HTTPS endpoint reached by SN outbound BR, browser DL token relay, and `teams_a2a` push-back. Pinned `min=max=1` (in-memory session map). See [`03-bridge-backend.md`](03-bridge-backend.md). |
 | `teams_a2a/` | **Azure Container Apps** — `ca-cps-sn-skill` in `cae-cpv` | Name is historical from the rejected v3 skill spike; kept stable so the CS A2A "Add an agent" registration doesn't have to be reissued. Renaming tracked as a follow-up. |
-| `teams_agent/` | Local container (dev) / dev tunnel | Deprecated path; kept for the Genesys-style handoff reference implementation. |
 | Copilot Studio agent (web) | Microsoft-hosted (Power Platform) | `awm_contosoithelp` — anonymous DL token, serves the browser kiosk via the bridge's `/directline/token` proxy. |
 | Copilot Studio agent (Teams) | Microsoft-hosted (Power Platform) | `crd20_itHelpDeskTriageAssistant` — Entra Agent ID auth, serves the Teams channel natively. |
 | Connected Agent on both | n/a (registration) | `teams_a2a` (the `ca-cps-sn-skill` ACA app) is registered as an A2A Connected Agent on **both** CS agents and owns the live-chat handoff for both surfaces. |
 
-## Why two Teams channels?
+## How the two channels relate
 
-They solve the same business problem — "let a Teams user chat with the
-CS agent and hand off to a live ServiceNow CSR" — at two different
-*integration seams* with Copilot Studio:
+Both channels solve the same business problem — "let a user chat with
+the CS agent and hand off to a live ServiceNow CSR" — and they share
+the same handoff backend (`teams_a2a/`). They differ only in which CS
+surface the user starts in:
 
-- **`teams_agent/` is Teams-first.** The Teams app **is** the bot.
-  Copilot Studio sits *behind* it on Direct Line; the agent process
-  proxies turns, watches for the escalate event, and pushes rep
-  replies into the same Teams 1:1 chat via
-  `adapter.continue_conversation`.
-
-- **`teams_a2a/` is Copilot-Studio-first.** The user already chats
-  with a Copilot Studio agent (in Teams via CS's own channel, or
-  anywhere CS is reachable). When the CS orchestrator decides the
-  user wants a human, it dispatches the activity to our process via
-  the **A2A "Add an agent → Microsoft 365 Agents SDK"** connector. We
-  reply synchronously, and proactively push later rep messages to the
-  signed `serviceUrl` on the activity.
+- **Web (`web/` + `bridge/`):** browser kiosk talks to CS agent
+  `awm_contosoithelp` via the bridge's DL token relay. CS routes
+  escalations to the Connected Agent.
+- **Teams (`teams_a2a/`):** Teams 1:1 chat talks to CS agent
+  `crd20_itHelpDeskTriageAssistant` via CS's native Teams channel.
+  CS routes escalations to the same Connected Agent.
 
 Same backend, same SN wiring, same state machine — different end of
 the hose.
@@ -124,48 +119,6 @@ Connected Agent can correlate CS turns to a `BridgeSession`.
 See [`05-browser-webchat.md`](05-browser-webchat.md) for the page-side
 state machine.
 
-### Teams via M365 Agents SDK (`teams_agent/`)
-
-```
-+----------------------+   (1) Teams activity   +-------------------------+
-|  Teams 1:1 chat      | ---------------------> |  Azure Bot resource     |
-|  "IT Helper" app     |                        |  (channel = Teams)      |
-+----------+-----------+                        +------------+------------+
-                                                              |
-                                                (2) POST /api/messages
-                                                              v
-+--------------------------------------------------------------------+
-| teams_agent/ (microsoft-agents-hosting-aiohttp, AgentApplication)  |
-|   - per-Teams-user session via /api/teams/init-session             |
-|   - DL parity client (teams_agent/dl.py) talks to CS Direct Line   |
-|   - Genesys-style handoff event listener                           |
-+----------+--------------------------------+------------------------+
-           |                                |
-   (3) DL turn                              | (4) /api/servicenow/* on bridge
-           v                                v
-   +----------------+               +-----------------------------+
-   | Copilot Studio |               | bridge (Flask)              |
-   | (DL channel)   |               | shared with web channel     |
-   +----------------+               +--------------+--------------+
-                                                   |
-                                  rep replies / status / typing
-                                                   v
-                                  POST /api/teams/push (signed)
-                                                   |
-                                                   v
-                          adapter.continue_conversation -> Teams 1:1
-```
-
-**Key property.** Teams owns the surface. Users see no sign-in card
-(server-side DL token). Bridge pushes rep messages into Teams via the
-agent process, which holds the AAD-issued `ConversationReference`. The
-agent IS the messaging-endpoint bot for Teams; CS is invisible to the
-user as a separately addressable thing.
-
-**When you want this.** Teams should be the canonical front end and
-Copilot Studio should be a backend cognition engine. The user never
-needs to see "Copilot Studio" anywhere.
-
 ### Teams via Copilot Studio A2A (`teams_a2a/`)
 
 ```
@@ -208,21 +161,6 @@ know. You want to add ServiceNow handoff as one capability among many.
 You want CS to do the routing/intent detection rather than hard-coding
 it in your own bot.
 
-## Comparison
-
-| Concern | `teams_agent/` (Genesys-style) | `teams_a2a/` (A2A) |
-| ------- | ------------------------------ | -------------------- |
-| Who owns the Teams app | Our agent (Azure Bot) | Copilot Studio (its native channel) |
-| Inbound transport | Bot Framework / Teams channel | A2A connector from CS |
-| Outbound to user | `adapter.continue_conversation` (Teams push) | Synchronous reply + proactive POST to signed CS `serviceUrl` |
-| User identity in CS | DL token's `user.id` we mint | CS-minted; we read from `from.id` / `channelData` |
-| User-visible identity | Our bot's name/avatar | CS agent's name/avatar |
-| CS auth | None (server-side DL token) | Classic AAD app reg + client secret on the connector |
-| Routing decision | Our agent state machine | CS orchestrator (LLM, intent-based) |
-| When CS decides to dispatch | Always (we proxy every turn) | Per turn, per agent description |
-| Multi-agent composition | No (we are the only bot) | Yes — CS can mix us with other A2A agents, prompts, flows |
-| Sample provenance | Genesys handoff sample (.NET, ported) | Microsoft Learn: ["Add an agent → M365 Agents SDK"](https://learn.microsoft.com/en-us/microsoft-copilot-studio/configuration/add-agent-microsoft-365-agents-sdk-agent) |
-
 ## Why `teams_bot/` was dropped
 
 `teams_bot/` was the original Bot Framework SDK
@@ -234,8 +172,8 @@ it in your own bot.
 2. **Async/sync mismatch.** `botbuilder-python` is async-only and
    the bridge process is sync Flask. We bridged the gap with a
    thread-pool + asyncio-loop hack in `teams_bot/runtime.py`. That
-   wart is gone in `teams_agent/` because the agent runs in its own
-   aiohttp process.
+   wart is gone in the Agents SDK code because the agent runs in its
+   own aiohttp process.
 3. **Distribution friction.** `botframework-connector` imported
    `aiohttp` transitively without declaring it; `CloudAdapter` and
    `ConfigurationBotFrameworkAuthentication` moved out of
@@ -244,16 +182,39 @@ it in your own bot.
 4. **No first-class A2A.** The A2A "Add an agent" path that
    `teams_a2a/` uses requires the M365 Agents SDK; the BF SDK has
    no equivalent integration.
-5. **One implementation per SDK is enough.** Once `teams_agent/`
-   reached parity, keeping `teams_bot/` only added cutover knobs,
-   parallel infra, and confused new contributors.
 
-The bridge dispatcher used to support a `TEAMS_PUSH_TARGET`
-(`legacy` / `agent` / `both`) flag for cutover. With `teams_bot/`
-gone the dispatcher always pushes to `teams_agent/`; the env var was
-removed.
+## Why `teams_agent/` was dropped
 
-## What's reused across all three channels
+`teams_agent/` was a Genesys-style server-side relay built on the
+M365 Agents SDK. The Teams app **was** the bot; it proxied every
+turn to a CS Direct Line session and listened on the DL stream for
+a `ServiceNowHandoff` custom event emitted by the CS Escalate topic
+to trigger the SN handoff.
+
+It was removed in v2.3 because:
+
+1. **Custom escalate event is no longer emitted.** Once the
+   Connected Agent (`teams_a2a/`) was attached to `awm_contosoithelp`,
+   the CS Escalate topic redirects to that Connected Agent instead
+   of emitting `ServiceNowHandoff`. The event listener in
+   `teams_agent/agent.py` became dead code.
+2. **Redundant with `teams_a2a/`.** Both folders implemented the
+   same SN handoff with the same SDK, against the same bridge. With
+   the Connected Agent as the canonical handoff seam, there is no
+   reason to keep two implementations.
+3. **CS-invisible UX is not required.** The original justification —
+   "Teams should be the canonical front end and CS should be
+   invisible" — was a preference, not a requirement. The CS native
+   Teams channel + A2A Connected Agent gives users a clean Teams
+   experience without a separate bot identity.
+
+The bridge's `/api/teams/*` routes (`init-session`, `reset-session`,
+`map-dl-user`), the `_push_to_teams_agent` dispatcher branch, the
+`teams_user_key` / `teams_conversation_reference` / `channel`
+session fields, and the `TEAMS_AGENT_PUSH_*` env vars were removed
+along with the folder.
+
+## What's reused across both channels
 
 | Reused (no change required by channel)                          |
 | --------------------------------------------------------------- |
@@ -262,28 +223,26 @@ removed.
 | `_escalate_session`, `BridgeSession` core fields, recent-text echo dedupe |
 | `/api/servicenow/agent/escalate`, `/user-message`, `/webhook`   |
 
-## State machine (same for all three channels)
+## State machine (same for both channels)
 
 | State    | What the user sees                                       | Where their input goes                |
 | -------- | -------------------------------------------------------- | ------------------------------------- |
-| `bot`    | Replies authored by the Copilot Studio agent.            | Direct Line (web, `teams_agent/`) or A2A inbound (`teams_a2a/`) |
+| `bot`    | Replies authored by the Copilot Studio agent.            | Direct Line (web) or A2A inbound (`teams_a2a/`) |
 | `queued` | "Connecting an agent..." + IMS#                          | Suppressed (canned reply)             |
 | `live`   | "You're now chatting with `<rep>`", then plain replies prefixed with rep name | `POST /api/servicenow/user-message` |
 | `closed` | "This chat has ended." Type **new** to reset.            | Suppressed                            |
 
 ## Identity
 
-All three channels resolve the user to a `sys_user.sys_id` via the SN
+Both channels resolve the user to a `sys_user.sys_id` via the SN
 Table API
 (`/api/now/table/sys_user?sysparm_query=email=<x>^ORuser_name=<x>`).
 
 - **Web:** the page JS supplies the email at `init-session` time (or a
   test email is hard-coded for local dev).
-- **`teams_agent/`:** the AAD `userPrincipalName` from the Teams
-  activity's `from.aadObjectId` is resolved.
 - **`teams_a2a/`:** the email from `from.email` / `channelData` on
   the inbound A2A activity is resolved.
 
-In all three cases, if no SN user matches, the bridge falls back to a
+In both cases, if no SN user matches, the bridge falls back to a
 configurable `SN_DEFAULT_REQUESTOR_SYSID` so the chat still gets
 opened.

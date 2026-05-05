@@ -20,8 +20,7 @@ Connected Agent on both CS agents.**
 > The Connected Agent (A2A) path is now the sole handoff mechanism.
 
 > **Read first:** [`10-teams-channel-overview.md`](10-teams-channel-overview.md)
-> for the architectural difference between this and `teams_agent/`.
-> The two Teams options are alternatives, not layers.
+> for the channel topology overview.
 
 ## What stays untouched
 

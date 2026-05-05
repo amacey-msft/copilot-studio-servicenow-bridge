@@ -53,33 +53,6 @@ SN_DEFAULT_USER_SYS_ID = os.environ.get("SN_DEFAULT_USER_SYS_ID") or "e23081fb3b
 SN_DEFAULT_QUEUE_SYS_ID = os.environ.get("SN_DEFAULT_QUEUE_SYS_ID") or "3787b03b3b180310e4058e0f23e45ad0"  # IT Help Chat
 SN_DEFAULT_CHANNEL_SYS_ID = os.environ.get("SN_DEFAULT_CHANNEL_SYS_ID") or "27f675e3739713004a905ee515f6a7c3"  # Chat
 
-# How long a Teams session in queued / live / closed state may sit idle
-# before the next user turn auto-recycles it back to a fresh BOT session.
-# Without this, a user who escalated a week ago is stuck talking to a
-# long-dead live-chat that the CSR has long since left.
-TEAMS_SESSION_IDLE_TIMEOUT_S = float(
-    os.environ.get("TEAMS_SESSION_IDLE_TIMEOUT_S", "3600")
-)
-
-# Shorter idle threshold for the LIVE state specifically. Covers the
-# common case where the user closes / clears the Teams chat after the
-# CSR walks away, then comes back later: the server has no signal that
-# the client cleared, so without this the next turn would forward into
-# a dead interaction. 15 min is short enough to avoid this trap but
-# long enough to survive a real user stepping away mid-conversation.
-TEAMS_LIVE_IDLE_RECYCLE_S = float(
-    os.environ.get("TEAMS_LIVE_IDLE_RECYCLE_S", "900")
-)
-
-# Outbound Teams pushes go to the M365 Agents SDK port (`teams_agent/`).
-# The legacy in-process Bot Framework path (`teams_bot/`) was removed once
-# Microsoft deprecated `botbuilder-python` in favour of
-# `microsoft-agents-*`. See docs/10-teams-channel-overview.md.
-TEAMS_AGENT_PUSH_URL = (os.environ.get("TEAMS_AGENT_PUSH_URL") or "").rstrip("/")
-TEAMS_AGENT_PUSH_SECRET = os.environ.get("TEAMS_AGENT_PUSH_SECRET") or ""
-TEAMS_AGENT_PUSH_TIMEOUT_S = float(os.environ.get("TEAMS_AGENT_PUSH_TIMEOUT_S", "10"))
-
-
 # ---------------------------------------------------------------------------
 # Session state
 # ---------------------------------------------------------------------------
@@ -102,9 +75,6 @@ class BridgeSession:
     user_display_name: str | None = None
     rep_name: str | None = None
     created_at: float = field(default_factory=time.time)
-    # Updated whenever the user sends a turn (Teams or web) so we can detect
-    # stale sessions and auto-recycle them.
-    last_activity_at: float = field(default_factory=time.time)
     # Buffered rep messages for clients that poll instead of using WS.
     pending: deque = field(default_factory=deque)
     websocket: Any = None  # flask_sock Server, set when client connects
@@ -113,29 +83,12 @@ class BridgeSession:
     # fires on every insert (including ours), so the webhook can re-deliver
     # the user's own text as a rep message. We drop the matching echo.
     recent_user_texts: deque = field(default_factory=lambda: deque(maxlen=20))
-    # ----- Teams channel additions (see ../teams_agent/) -----
-    # "web" (browser webchat, default) | "teams" (M365 Agents SDK relay)
-    channel: str = "web"
-    # Stable per-Teams-user key (AAD object id) used to look up an existing
-    # session on subsequent turns so we don't allocate a new sid per message.
-    teams_user_key: str | None = None
-    # Serialized conversation reference for proactive push via the
-    # teams_agent /api/teams/push endpoint. Stored as a plain dict so the
-    # bridge itself stays free of agents-SDK imports.
-    teams_conversation_reference: dict | None = None
 
 
 _sessions: dict[str, BridgeSession] = {}
 _sessions_lock = threading.Lock()
 # Reverse index for webhook lookups by interaction sys_id
 _by_interaction: dict[str, str] = {}
-# Reverse index for Teams: AAD user key -> bridge sid (so each Teams user
-# keeps a stable sid across turns / app restarts of the Teams client).
-_by_teams_user: dict[str, str] = {}
-# Reverse index: Direct Line server-rewritten user id (UUID minted by CS
-# token endpoint, embedded in the JWT) -> bridge sid. The CS HTTP escalate
-# tool reads `System.Activity.From.Id` which is the DL user id, not our sid.
-_by_dl_user: dict[str, str] = {}
 
 
 def _get_session(sid: str) -> BridgeSession | None:
@@ -305,48 +258,8 @@ def _push_to_browser(session: BridgeSession, payload: dict) -> None:
             session.pending.append(payload)
 
 
-def _push_to_teams_agent(session: BridgeSession, payload: dict) -> bool:
-    """HTTP push to the M365 Agents SDK port (`teams_agent/`).
-
-    Returns True on 2xx, False on any failure. Does not raise — Teams pushes
-    are best-effort by design (the user always has the poll fallback).
-    """
-    if not TEAMS_AGENT_PUSH_URL or not TEAMS_AGENT_PUSH_SECRET:
-        current_app.logger.warning(
-            "[push] TEAMS_AGENT_PUSH_URL/SECRET unset; cannot push to teams_agent"
-        )
-        return False
-    if not session.teams_conversation_reference:
-        return False
-    try:
-        r = requests.post(
-            f"{TEAMS_AGENT_PUSH_URL}/api/teams/push",
-            json={
-                "conversation_reference": session.teams_conversation_reference,
-                "payload": payload,
-            },
-            headers={"X-Bridge-Secret": TEAMS_AGENT_PUSH_SECRET},
-            timeout=TEAMS_AGENT_PUSH_TIMEOUT_S,
-        )
-        r.raise_for_status()
-        return True
-    except Exception:  # noqa: BLE001
-        current_app.logger.exception("[push] teams_agent HTTP push failed")
-        return False
-
-
 def _push_to_user(session: BridgeSession, payload: dict) -> None:
-    """Channel-aware dispatcher.
-
-    Web sessions go to the WS/poll buffer. Teams sessions are buffered for
-    /poll-style debug tools and also pushed to the M365 Agents SDK port
-    (`teams_agent/`) over HTTP.
-    """
-    if session.channel == "teams":
-        with session.lock:
-            session.pending.append(payload)
-        _push_to_teams_agent(session, payload)
-        return
+    """Push a JSON frame to the user via the browser WS/poll buffer."""
     _push_to_browser(session, payload)
 
 
@@ -395,138 +308,6 @@ def init_session():
     return jsonify({"session_id": s.sid, "state": s.state})
 
 
-@bp.route("/api/teams/init-session", methods=["POST"])
-def init_session_teams():
-    """Idempotent per-Teams-user session lookup/create.
-
-    Called by the relay bot (teams_agent/) on every turn. The first call for a
-    given `teams_user_key` allocates a new BridgeSession (channel="teams")
-    and resolves the AAD email to a sys_user.sys_id; later calls return the
-    same sid (so escalations and webhooks continue to find the right session).
-
-    Always refreshes the stored ConversationReference because Teams may rotate
-    serviceUrl, conversation ids, etc. across app upgrades or device switches.
-    """
-    data = request.get_json(silent=True) or {}
-    teams_user_key = (data.get("teams_user_key") or "").strip()
-    if not teams_user_key:
-        return jsonify({"error": "teams_user_key required"}), 400
-
-    user_email = (data.get("user_email") or "").strip() or None
-    user_display_name = (data.get("user_display_name") or "").strip() or None
-    conversation_reference = data.get("conversation_reference") or None
-
-    with _sessions_lock:
-        existing_sid = _by_teams_user.get(teams_user_key)
-    s = _get_session(existing_sid) if existing_sid else None
-
-    # Auto-recycle a stale non-BOT session: if the user comes back days /
-    # weeks after escalating, the live-chat is long dead and forwarding more
-    # messages into it just produces silence. Treat the next turn as a fresh
-    # bot conversation. The old BridgeSession is dropped from the in-memory
-    # store; the SN-side records (interaction etc.) remain in SN as history.
-    if s is not None and s.state != STATE_BOT:
-        idle_for = time.time() - (s.last_activity_at or s.created_at)
-        live_stale = (
-            s.state == STATE_LIVE and idle_for > TEAMS_LIVE_IDLE_RECYCLE_S
-        )
-        if (
-            s.state == STATE_CLOSED
-            or live_stale
-            or idle_for > TEAMS_SESSION_IDLE_TIMEOUT_S
-        ):
-            current_app.logger.info(
-                "[teams] recycling stale session sid=%s state=%s idle_s=%.0f",
-                s.sid, s.state, idle_for,
-            )
-            with _sessions_lock:
-                _by_teams_user.pop(teams_user_key, None)
-                _sessions.pop(s.sid, None)
-                if s.interaction_sys_id:
-                    _by_interaction.pop(s.interaction_sys_id, None)
-            s = None
-
-    if s is None:
-        s = _new_session(user_email=user_email, user_display_name=user_display_name)
-        s.channel = "teams"
-        s.teams_user_key = teams_user_key
-        s.sn_user_sys_id = (
-            _email_to_sn_user_sys_id(user_email) or SN_DEFAULT_USER_SYS_ID
-        )
-        with _sessions_lock:
-            _by_teams_user[teams_user_key] = s.sid
-    else:
-        # Refresh display name / email if the bot now has a better value.
-        if user_display_name and not s.user_display_name:
-            s.user_display_name = user_display_name
-        if user_email and not s.user_email:
-            s.user_email = user_email
-            resolved = _email_to_sn_user_sys_id(user_email)
-            if resolved:
-                s.sn_user_sys_id = resolved
-
-    s.last_activity_at = time.time()
-
-    if conversation_reference:
-        s.teams_conversation_reference = conversation_reference
-
-    current_app.logger.info(
-        "[teams] init-session sid=%s state=%s user_key=%s has_ref=%s",
-        s.sid, s.state, teams_user_key, bool(conversation_reference),
-    )
-
-    return jsonify(
-        {
-            "session_id": s.sid,
-            "state": s.state,
-            "rep_name": s.rep_name,
-            "interaction_number": s.interaction_number,
-        }
-    )
-
-
-@bp.route("/api/teams/reset-session", methods=["POST"])
-def reset_session_teams():
-    """Drop a Teams user's session so the next turn allocates a fresh one.
-
-    The relay bot calls this when the user types "new" after a closed chat.
-    """
-    data = request.get_json(silent=True) or {}
-    teams_user_key = (data.get("teams_user_key") or "").strip()
-    if not teams_user_key:
-        return jsonify({"error": "teams_user_key required"}), 400
-    with _sessions_lock:
-        sid = _by_teams_user.pop(teams_user_key, None)
-        if sid:
-            s = _sessions.pop(sid, None)
-            if s and s.interaction_sys_id:
-                _by_interaction.pop(s.interaction_sys_id, None)
-    return jsonify({"ok": True})
-
-
-@bp.route("/api/teams/map-dl-user", methods=["POST"])
-def map_dl_user():
-    """Register a `dl_user_id -> sid` mapping.
-
-    The Copilot Studio HTTP escalate tool reads `System.Activity.From.Id`
-    which Direct Line rewrites to the user id encoded in the DL token (a
-    UUID minted by CS that we cannot pin via `?userId=`). The teams_agent
-    extracts that id from the DL JWT after token mint and registers it
-    here so `/api/servicenow/agent/escalate` can resolve it back to our sid.
-    """
-    data = request.get_json(silent=True) or {}
-    sid = (data.get("session_id") or "").strip()
-    dl_user_id = (data.get("dl_user_id") or "").strip()
-    if not sid or not dl_user_id:
-        return jsonify({"error": "session_id and dl_user_id required"}), 400
-    if _get_session(sid) is None:
-        return jsonify({"error": "unknown session"}), 404
-    with _sessions_lock:
-        _by_dl_user[dl_user_id] = sid
-    current_app.logger.info("[teams] map-dl-user dl=%s -> sid=%s", dl_user_id, sid)
-    return jsonify({"ok": True})
-
-
 @bp.route("/api/servicenow/agent/create-ticket", methods=["POST"])
 def agent_create_ticket():
     """Called by the Copilot Studio agent when the user's request is best handled
@@ -566,16 +347,6 @@ def agent_escalate():
     if not sid:
         return jsonify({"error": "session_id required"}), 400
     s = _get_session(sid)
-    if s is None:
-        # CS HTTP tool sends `System.Activity.From.Id` which is the DL-rewritten
-        # user id, not our bridge sid. Look up via the dl_user_id reverse index.
-        mapped_sid = _by_dl_user.get(sid)
-        if mapped_sid:
-            s = _get_session(mapped_sid)
-            if s is not None:
-                current_app.logger.info(
-                    "[agent] escalate resolved dl_user_id=%s -> sid=%s", sid, mapped_sid,
-                )
     if not s:
         return jsonify({"error": "unknown session"}), 404
     if s.state in (STATE_QUEUED, STATE_LIVE):
@@ -713,9 +484,7 @@ def webhook():
         s.state = STATE_CLOSED
         _push_to_user(s, {"type": "status", "state": s.state})
     elif event == "typing":
-        # Rep is typing in SN; surface as a transient indicator on the user
-        # side. Web ignores by default (no-op in browser dispatcher); Teams
-        # renders an Activity(type="typing"). See teams_agent/push.py.
+        # Rep is typing in SN; surface a transient indicator to the browser.
         _push_to_user(s, {"type": "typing", "rep_name": s.rep_name})
     else:
         # First reply implicitly transitions to LIVE if not already

@@ -28,11 +28,6 @@ app_logs/
 *_secret*
 secret_*
 
-# Teams manifest build output
-teams_agent/manifest/dist/
-
-teams_agent/manifest/dist/
-
 # Local doc/diagram render artifacts (only the rendered PNG is committed)
 docs/_build/
 docs/00-architecture-overview.md
